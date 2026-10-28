@@ -3,8 +3,10 @@ import { clearCart, removeItem, setQuantity } from "@/slices/cartSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { DeleteOutlined } from "@ant-design/icons";
 import { Button, Card, Empty, message, Space, Typography } from "antd";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import QuantityStepper from "@/components/QuantityStepper/QuantityStepper";
+import { useState } from "react";
+import { createOrder } from "@/api/OrderApi";
 
 export default function CartPage() {
   const dispatch = useAppDispatch();
@@ -14,6 +16,8 @@ export default function CartPage() {
     (sum, i) => sum + i.product.basePrice * i.quantity,
     0,
   );
+  const navigate = useNavigate();
+  const [isPlacing, setIsPlacing] = useState(false);
 
   if (items.length === 0) {
     return (
@@ -24,6 +28,22 @@ export default function CartPage() {
       </Empty>
     );
   }
+
+  const handleCheckout = async () => {
+    setIsPlacing(true);
+    try {
+      const order = await createOrder(
+        items.map((i) => ({ productId: i.product.id, quantity: i.quantity })),
+      );
+      dispatch(clearCart());
+      message.success(`Заказ №${order.id} оформлен`);
+      navigate("/orders");
+    } catch (error) {
+      message.error("Не удалось оформить заказ");
+    } finally {
+      setIsPlacing(false);
+    }
+  };
 
   return (
     <div>
@@ -112,7 +132,8 @@ export default function CartPage() {
           <Button
             type="primary"
             size="large"
-            onClick={() => message.info("Оформление заказа — следующая фича")}
+            loading={isPlacing}
+            onClick={handleCheckout}
           >
             Оформить заказ
           </Button>

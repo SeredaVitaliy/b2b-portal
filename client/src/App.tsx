@@ -10,6 +10,8 @@ import { initialAuth } from "./slices/authSlice";
 import CatalogPage from "./pages/CatalogPage/CatalogPage";
 import ProductPage from "./pages/ProductPage/ProductPage";
 import CartPage from "./pages/CartPage/CartPage";
+import OrdersPage from "./pages/OrdersPage/OrdersPage";
+import OrderDetailPage from "./pages/OrderDetailPage/OrderDetailPage";
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -26,6 +28,9 @@ const router = createBrowserRouter([
             element: <ProductPage />,
           },
           { path: "/cart", element: <CartPage /> },
+          { path: "/cart", element: <CartPage /> },
+          { path: "/orders", element: <OrdersPage /> },
+          { path: "/orders/:id", element: <OrderDetailPage /> },
         ],
       },
     ],

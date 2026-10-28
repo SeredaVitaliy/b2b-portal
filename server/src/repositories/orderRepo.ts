@@ -1,0 +1,143 @@
+import type { Order, OrderItem, OrderStatus, Unit } from "@b2b/shared";
+import { db } from "../db";
+
+/** Ошибка валидации заказа (например, количество ниже минимальной партии). */
+export class OrderError extends Error {}
+
+interface OrderRow {
+  id: number;
+  user_id: number;
+  status: OrderStatus;
+  total: number;
+  created_at: number;
+}
+
+interface OrderItemRow {
+  id: number;
+  order_id: number;
+  product_id: number;
+  name: string;
+  sku: string;
+  unit: Unit;
+  unit_price: number;
+  quantity: number;
+}
+
+interface ProductForOrder {
+  name: string;
+  sku: string;
+  unit: Unit;
+  base_price: number;
+  min_batch: number;
+}
+
+function mapItem(r: OrderItemRow): OrderItem {
+  return {
+    id: r.id,
+    productId: r.product_id,
+    name: r.name,
+    sku: r.sku,
+    unit: r.unit,
+    unitPrice: r.unit_price,
+    quantity: r.quantity,
+  };
+}
+
+function mapOrder(row: OrderRow, items: OrderItem[]): Order {
+  return {
+    id: row.id,
+    status: row.status,
+    total: row.total,
+    createdAt: row.created_at,
+    items,
+  };
+}
+
+export interface CreateOrderInput {
+  userId: number;
+  items: Array<{ productId: number; quantity: number }>;
+}
+
+export const orderRepo = {
+  /**
+   * Создаёт заказ со всеми позициями в одной транзакции:
+   * либо записывается всё, либо (при ошибке) ничего.
+   * Цену и данные товара берём из БД, а не из тела запроса.
+   */
+  create(input: CreateOrderInput): Order {
+    const tx = db.transaction((data: CreateOrderInput): number => {
+      const now = Math.floor(Date.now() / 1000);
+
+      const orderId = db
+        .prepare(
+          "INSERT INTO orders (user_id, status, total, created_at) VALUES (?, 'new', 0, ?)",
+        )
+        .run(data.userId, now).lastInsertRowid as number;
+
+      const getProduct = db.prepare(
+        "SELECT name, sku, unit, base_price, min_batch FROM products WHERE id = ?",
+      );
+      const insertItem = db.prepare(
+        `INSERT INTO order_items
+           (order_id, product_id, name, sku, unit, unit_price, quantity)
+         VALUES (@orderId, @productId, @name, @sku, @unit, @unitPrice, @quantity)`,
+      );
+
+      let total = 0;
+      for (const line of data.items) {
+        const p = getProduct.get(line.productId) as ProductForOrder | undefined;
+        if (!p) throw new OrderError(`Товар #${line.productId} не найден`);
+
+        const qty = Math.round(line.quantity);
+        if (qty < p.min_batch) {
+          throw new OrderError(
+            `Для «${p.name}» минимальная партия ${p.min_batch}`,
+          );
+        }
+
+        total += p.base_price * qty;
+        insertItem.run({
+          orderId,
+          productId: line.productId,
+          name: p.name,
+          sku: p.sku,
+          unit: p.unit,
+          unitPrice: p.base_price,
+          quantity: qty,
+        });
+      }
+
+      db.prepare("UPDATE orders SET total = ? WHERE id = ?").run(total, orderId);
+      return orderId;
+    });
+
+    const orderId = tx(input);
+    // getById не вернёт undefined сразу после создания — заказ точно есть.
+    return this.getById(input.userId, orderId)!;
+  },
+
+  /** Все заказы пользователя, новые сверху. */
+  listByUser(userId: number): Order[] {
+    const rows = db
+      .prepare(
+        "SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC, id DESC",
+      )
+      .all(userId) as OrderRow[];
+    return rows.map((o) => mapOrder(o, this.itemsOf(o.id)));
+  },
+
+  /** Один заказ по id — только если он принадлежит этому пользователю. */
+  getById(userId: number, orderId: number): Order | undefined {
+    const row = db
+      .prepare("SELECT * FROM orders WHERE id = ? AND user_id = ?")
+      .get(orderId, userId) as OrderRow | undefined;
+    return row ? mapOrder(row, this.itemsOf(row.id)) : undefined;
+  },
+
+  itemsOf(orderId: number): OrderItem[] {
+    const rows = db
+      .prepare("SELECT * FROM order_items WHERE order_id = ? ORDER BY id")
+      .all(orderId) as OrderItemRow[];
+    return rows.map(mapItem);
+  },
+};

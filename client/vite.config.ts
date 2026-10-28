@@ -1,4 +1,5 @@
-import { defineConfig } from "vite";
+/// <reference types="vitest/config" />
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 
@@ -17,5 +18,13 @@ export default defineConfig({
       // Благодаря этому фронт ходит на относительный /api и в dev нет CORS-проблем.
       "/api": "http://localhost:4000",
     },
+  },
+  test: {
+    // globals: describe/it/expect доступны без импорта (как в Jest).
+    globals: true,
+    // jsdom — «виртуальный DOM» в Node, чтобы рендерить компоненты без браузера.
+    environment: "jsdom",
+    // Файл, который подключается перед каждым тест-файлом (матчеры jest-dom).
+    setupFiles: "./src/test/setup.ts",
   },
 });

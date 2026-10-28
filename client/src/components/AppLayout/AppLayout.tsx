@@ -53,7 +53,15 @@ export default function AppLayout() {
   const menuItems = [
     { key: "/", label: <Link to="/">Главная</Link> },
     { key: "/catalog", label: <Link to="/catalog">Каталог</Link> },
+    { key: "/orders", label: <Link to="/orders">Мои заказы</Link> },
   ];
+
+  // Какой пункт меню подсветить: по началу пути (чтобы /catalog/5 и /orders/3 тоже подсвечивались).
+  const activeKey = location.pathname.startsWith("/catalog")
+    ? "/catalog"
+    : location.pathname.startsWith("/orders")
+      ? "/orders"
+      : "/";
 
   const cartPreview = (
     <div style={{ width: 280 }}>
@@ -132,7 +140,7 @@ export default function AppLayout() {
         <Menu
           theme="dark"
           mode="horizontal"
-          selectedKeys={[location.pathname === "/catalog" ? "/catalog" : "/"]}
+          selectedKeys={[activeKey]}
           items={menuItems}
           style={{ flex: 1, minWidth: 0, background: "transparent" }}
         />

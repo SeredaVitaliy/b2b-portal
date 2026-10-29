@@ -129,4 +129,14 @@ export const catalogRepo = {
       | undefined;
     return row ? mapProduct(row) : undefined;
   },
+
+  // Актуальные товары по списку id (для «Повторить заказ»). Отсутствующие просто не вернутся.
+  getProductsByIds(ids: number[]): Product[] {
+    if (ids.length === 0) return [];
+    const placeholders = ids.map(() => "?").join(",");
+    const rows = db
+      .prepare(`SELECT * FROM products WHERE id IN (${placeholders})`)
+      .all(...ids) as ProductRow[];
+    return rows.map(mapProduct);
+  },
 };

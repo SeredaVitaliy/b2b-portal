@@ -6,9 +6,11 @@ import { ArrowLeftOutlined } from "@ant-design/icons";
 import { Button, Card, Empty, Spin, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useRepeatOrder } from "@/hooks/useRepeatOrder";
 
 export default function OrderDetailPage() {
   const { id } = useParams();
+  const repeatOrder = useRepeatOrder();
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -65,6 +67,13 @@ export default function OrderDetailPage() {
           Заказ №{order.id}
         </Typography.Title>
         <Tag color={status.color}>{status.label}</Tag>
+        <Button
+          type="primary"
+          onClick={() => repeatOrder(order)}
+          style={{ marginLeft: "auto" }}
+        >
+          Повторить заказ
+        </Button>
       </div>
       <Typography.Text type="secondary">
         {formatDateTime(order.createdAt)}

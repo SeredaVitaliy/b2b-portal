@@ -54,6 +54,17 @@ catalogRouter.get("/products", (req, res) => {
   res.json(catalogRepo.listProducts(query));
 });
 
+// GET /api/products/batch?ids=1,2,3 — актуальные товары по списку id (для «Повторить заказ»).
+// Должен быть ВЫШЕ /products/:id, иначе "batch" попадёт в :id.
+catalogRouter.get("/products/batch", (req, res) => {
+  const raw = typeof req.query.ids === "string" ? req.query.ids : "";
+  const ids = raw
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  res.json(catalogRepo.getProductsByIds(ids));
+});
+
 // GET /api/products/:id
 catalogRouter.get("/products/:id", (req, res) => {
   const id = Number(req.params.id);

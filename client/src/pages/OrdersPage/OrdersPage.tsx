@@ -1,14 +1,16 @@
 import { getOrders } from "@/api/OrderApi";
+import { useRepeatOrder } from "@/hooks/useRepeatOrder";
 import { formatDateTime, orderStatusMeta } from "@/lib/order";
 import { formatPrice } from "@/lib/product";
 import { Order } from "@b2b/shared";
-import { Card, Empty, Space, Spin, Tag, Typography } from "antd";
+import { Button, Card, Empty, Space, Spin, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const repeatOrder = useRepeatOrder();
 
   useEffect(() => {
     const load = async () => {
@@ -65,6 +67,16 @@ export default function OrdersPage() {
                   <Typography.Text strong>
                     {formatPrice(order.total)}
                   </Typography.Text>
+                  <Button
+                    size="small"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      repeatOrder(order);
+                    }}
+                  >
+                    Повторить
+                  </Button>
                 </div>
               </Card>
             </Link>

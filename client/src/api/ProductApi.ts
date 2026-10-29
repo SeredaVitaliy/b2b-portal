@@ -50,3 +50,15 @@ export async function getProduct(id: number): Promise<Product> {
     throw error;
   }
 }
+
+export async function getProductsByIds(ids: number[]): Promise<Product[]> {
+  try {
+    const response = await api.get<Product[]>("/products/batch", {
+      params: { ids: ids.join(",") },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Ошибка загрузки товаров:", error);
+    throw error;
+  }
+}

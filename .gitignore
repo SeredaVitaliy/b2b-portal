@@ -17,3 +17,6 @@ server/data/
 /test-results/
 /playwright-report/
 /playwright/.cache/
+
+# служебный контекст ассистента
+.assistant-context.md

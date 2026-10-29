@@ -12,13 +12,19 @@ import { Link } from "react-router-dom";
 import { addItem, removeItem, setQuantity } from "@/slices/cartSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import QuantityStepper from "@/components/QuantityStepper/QuantityStepper";
+import { highlightMatch } from "@/lib/search";
 
 interface Props {
   product: Product;
   categoryName?: string;
+  highlight?: string;
 }
 
-export default function ProductCard({ product, categoryName }: Props) {
+export default function ProductCard({
+  product,
+  categoryName,
+  highlight,
+}: Props) {
   const [imageFailed, setImageFailed] = useState(false);
   const stock = stockMeta[product.stockStatus];
   const unit = unitLabel[product.unit];
@@ -86,10 +92,10 @@ export default function ProductCard({ product, categoryName }: Props) {
             {stock.label}
           </Tag>
           <Typography.Text strong ellipsis={{ tooltip: product.name }}>
-            {product.name}
+            {highlightMatch(product.name, highlight ?? "")}
           </Typography.Text>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Арт. {product.sku}
+            Арт. {highlightMatch(product.sku, highlight ?? "")}
           </Typography.Text>
           <Typography.Title level={4} style={{ margin: 0 }}>
             {formatPrice(product.basePrice)}

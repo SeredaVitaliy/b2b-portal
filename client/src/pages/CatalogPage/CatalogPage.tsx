@@ -21,6 +21,7 @@ import {
   type ProductSort,
 } from "@/api/ProductApi";
 import ProductCard from "@/components/ProductCard/ProductCard";
+import { normalizeSearch } from "@/lib/search";
 
 const sortOptions = [
   { value: "popularity", label: "По популярности" },
@@ -57,6 +58,7 @@ export default function CatalogPage() {
   // Состояние каталога живёт в URL (переживает уход на страницу товара и обратно).
   const [searchParams, setSearchParams] = useSearchParams();
   const params = useMemo(() => readParams(searchParams), [searchParams]);
+  const [searchInput, setSearchInput] = useState(params.search ?? "");
 
   // id категории → её название (для подбора картинки товара).
   const categoryNameById = useMemo(
@@ -70,6 +72,16 @@ export default function CatalogPage() {
       .then(setCategories)
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const normalized = normalizeSearch(searchInput);
+    if (normalized === (params.search ?? "")) return;
+
+    const timer = setTimeout(() => {
+      update({ search: normalized || undefined });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   // Товары перезагружаем при любом изменении строки запроса.
   useEffect(() => {
@@ -102,7 +114,8 @@ export default function CatalogPage() {
     if (next.inStock) sp.set("inStock", "true");
     if (next.sort) sp.set("sort", next.sort);
     if (next.page && next.page > 1) sp.set("page", String(next.page));
-    if (next.pageSize && next.pageSize !== 20) sp.set("pageSize", String(next.pageSize));
+    if (next.pageSize && next.pageSize !== 20)
+      sp.set("pageSize", String(next.pageSize));
 
     setSearchParams(sp);
   };
@@ -122,11 +135,11 @@ export default function CatalogPage() {
             alignItems: "center",
           }}
         >
-          <Input.Search
+          <Input
             placeholder="Поиск по названию или артикулу"
             allowClear
             defaultValue={params.search}
-            onSearch={(value) => update({ search: value || undefined })}
+            onChange={(e) => setSearchInput(e.target.value)}
             style={{ width: 280 }}
           />
           <Select
@@ -168,7 +181,9 @@ export default function CatalogPage() {
         </div>
       </Card>
 
-      <Typography.Text type="secondary">Найдено товаров: {total}</Typography.Text>
+      <Typography.Text type="secondary">
+        Найдено товаров: {total}
+      </Typography.Text>
 
       <Spin spinning={isLoading}>
         {!isLoading && products.length === 0 ? (
@@ -180,6 +195,7 @@ export default function CatalogPage() {
                 <ProductCard
                   product={product}
                   categoryName={categoryNameById.get(product.categoryId)}
+                  highlight={params.search}
                 />
               </Col>
             ))}

@@ -140,4 +140,23 @@ export const orderRepo = {
       .all(orderId) as OrderItemRow[];
     return rows.map(mapItem);
   },
+
+  /**
+   * id товаров, которые пользователь заказывает чаще всего:
+   * сначала по числу заказов, где товар встречался, затем по суммарному количеству.
+   */
+  frequentlyOrderedIds(userId: number, limit: number): number[] {
+    const rows = db
+      .prepare(
+        `SELECT oi.product_id AS id
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         WHERE o.user_id = ?
+         GROUP BY oi.product_id
+         ORDER BY COUNT(DISTINCT oi.order_id) DESC, SUM(oi.quantity) DESC
+         LIMIT ?`,
+      )
+      .all(userId, limit) as Array<{ id: number }>;
+    return rows.map((r) => r.id);
+  },
 };

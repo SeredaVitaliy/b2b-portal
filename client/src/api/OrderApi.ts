@@ -1,4 +1,4 @@
-import { CreateOrderItem, Order } from "@b2b/shared";
+import { CreateOrderItem, Order, Product } from "@b2b/shared";
 import api from "./axiosInstance";
 
 export async function createOrder(items: CreateOrderItem[]): Promise<Order> {
@@ -27,6 +27,16 @@ export async function getOrder(id: number): Promise<Order> {
     return response.data;
   } catch (error) {
     console.error("Ошибка загрузки заказа:", error);
+    throw error;
+  }
+}
+
+export async function getFrequentlyOrdered(): Promise<Product[]> {
+  try {
+    const response = await api.get<Product[]>("/orders/frequent");
+    return response.data;
+  } catch (error) {
+    console.error("Ошибка загрузки часто заказываемых:", error);
     throw error;
   }
 }

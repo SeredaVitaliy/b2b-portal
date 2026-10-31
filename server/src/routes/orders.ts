@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { CreateOrderRequest } from "@b2b/shared";
 import { authenticate } from "../middleware/auth";
 import { orderRepo, OrderError } from "../repositories/orderRepo";
+import { catalogRepo } from "../repositories/catalogRepo";
 
 export const orderRouter = Router();
 
@@ -45,6 +46,15 @@ orderRouter.post("/orders", (req, res) => {
 // GET /api/orders — история заказов текущего пользователя.
 orderRouter.get("/orders", (req, res) => {
   res.json(orderRepo.listByUser(req.user!.id));
+});
+
+// GET /api/orders/frequent — часто заказываемые товары пользователя.
+// Должен быть ВЫШЕ /orders/:id, иначе "frequent" попадёт в :id.
+orderRouter.get("/orders/frequent", (req, res) => {
+  const ids = orderRepo.frequentlyOrderedIds(req.user!.id, 8);
+  const byId = new Map(catalogRepo.getProductsByIds(ids).map((p) => [p.id, p]));
+  // Восстанавливаем порядок ранжирования (getProductsByIds отдаёт в произвольном порядке).
+  res.json(ids.map((id) => byId.get(id)).filter((p) => p !== undefined));
 });
 
 // GET /api/orders/:id — один заказ (только свой).

@@ -21,6 +21,9 @@ import { logout } from "@/api/AuthApi";
 import { tokenManager } from "@/api/tokenStorage";
 import { clearUser } from "@/slices/authSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { useEffect } from "react";
+import { getFavorites } from "@/api/FavoritesApi";
+import { setFavorites } from "@/slices/favoritesSlice";
 
 const { Header, Content, Footer } = Layout;
 
@@ -35,6 +38,12 @@ export default function AppLayout() {
     (sum, i) => sum + i.product.basePrice * i.quantity,
     0,
   );
+
+  useEffect(() => {
+    getFavorites()
+      .then((products) => dispatch(setFavorites(products.map((p) => p.id))))
+      .catch(() => {});
+  }, [dispatch]);
 
   const handleLogout = async () => {
     const refreshToken = localStorage.getItem("refreshToken");
@@ -54,6 +63,7 @@ export default function AppLayout() {
     { key: "/", label: <Link to="/">Главная</Link> },
     { key: "/catalog", label: <Link to="/catalog">Каталог</Link> },
     { key: "/orders", label: <Link to="/orders">Мои заказы</Link> },
+    { key: "/favorites", label: <Link to="/favorites">Избранное</Link> },
   ];
 
   // Какой пункт меню подсветить: по началу пути (чтобы /catalog/5 и /orders/3 тоже подсвечивались).
@@ -61,7 +71,9 @@ export default function AppLayout() {
     ? "/catalog"
     : location.pathname.startsWith("/orders")
       ? "/orders"
-      : "/";
+      : location.pathname.startsWith("/favorites")
+        ? "/favorites"
+        : "/";
 
   const cartPreview = (
     <div style={{ width: 280 }}>

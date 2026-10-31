@@ -1,6 +1,6 @@
 import { useState, type MouseEvent } from "react";
 import { Button, Card, Space, Tag, Typography } from "antd";
-import { DeleteOutlined } from "@ant-design/icons";
+import { DeleteOutlined, StarFilled, StarOutlined } from "@ant-design/icons";
 import type { Product } from "@b2b/shared";
 import {
   formatPrice,
@@ -13,6 +13,8 @@ import { addItem, removeItem, setQuantity } from "@/slices/cartSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import QuantityStepper from "@/components/QuantityStepper/QuantityStepper";
 import { highlightMatch } from "@/lib/search";
+import { addFavorite, removeFavorite } from "@/slices/favoritesSlice";
+import { addFavoriteApi, removeFavoriteApi } from "@/api/FavoritesApi";
 
 interface Props {
   product: Product;
@@ -75,6 +77,20 @@ export default function ProductCard({
     </div>
   );
 
+  const isFav = useAppSelector((state) =>
+    state.favorites.ids.includes(product.id),
+  );
+
+  const toggleFav = () => {
+    if (isFav) {
+      dispatch(removeFavorite(product.id));
+      removeFavoriteApi(product.id).catch(() => {});
+    } else {
+      dispatch(addFavorite(product.id));
+      addFavoriteApi(product.id).catch(() => {});
+    }
+  };
+
   return (
     <Link
       to={`/catalog/${product.id}`}
@@ -88,9 +104,32 @@ export default function ProductCard({
         cover={cover}
       >
         <Space direction="vertical" size={6} style={{ width: "100%" }}>
-          <Tag color={stock.color} style={{ marginInlineEnd: 0 }}>
-            {stock.label}
-          </Tag>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Tag color={stock.color} style={{ marginInlineEnd: 0 }}>
+              {stock.label}
+            </Tag>
+            <Button
+              type="text"
+              size="small"
+              icon={
+                isFav ? (
+                  <StarFilled style={{ color: "#faad14" }} />
+                ) : (
+                  <StarOutlined />
+                )
+              }
+              onClick={(e) => {
+                stopNav(e);
+                toggleFav();
+              }}
+            />
+          </div>
           <Typography.Text strong ellipsis={{ tooltip: product.name }}>
             {highlightMatch(product.name, highlight ?? "")}
           </Typography.Text>

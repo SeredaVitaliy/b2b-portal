@@ -12,6 +12,7 @@ import ProductPage from "./pages/ProductPage/ProductPage";
 import CartPage from "./pages/CartPage/CartPage";
 import OrdersPage from "./pages/OrdersPage/OrdersPage";
 import OrderDetailPage from "./pages/OrderDetailPage/OrderDetailPage";
+import FavoritesPage from "./pages/FavoritesPage/FavoritesPage";
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -31,6 +32,7 @@ const router = createBrowserRouter([
           { path: "/cart", element: <CartPage /> },
           { path: "/orders", element: <OrdersPage /> },
           { path: "/orders/:id", element: <OrderDetailPage /> },
+          { path: "/favorites", element: <FavoritesPage /> },
         ],
       },
     ],

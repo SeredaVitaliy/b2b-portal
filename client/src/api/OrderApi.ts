@@ -1,9 +1,17 @@
 import { CreateOrderItem, Order, Product } from "@b2b/shared";
 import api from "./axiosInstance";
 
-export async function createOrder(items: CreateOrderItem[]): Promise<Order> {
+export async function createOrder(
+  items: CreateOrderItem[],
+  comment?: string,
+  desiredDeliveryDate?: string,
+): Promise<Order> {
   try {
-    const response = await api.post<Order>("/orders", { items });
+    const response = await api.post<Order>("/orders", {
+      items,
+      comment,
+      desiredDeliveryDate,
+    });
     return response.data;
   } catch (error) {
     console.error("Ошибка оформления заказа:", error);

@@ -10,6 +10,8 @@ interface OrderRow {
   status: OrderStatus;
   total: number;
   created_at: number;
+  comment: string | null;
+  desired_delivery_date: string | null;
 }
 
 interface OrderItemRow {
@@ -49,6 +51,8 @@ function mapOrder(row: OrderRow, items: OrderItem[]): Order {
     status: row.status,
     total: row.total,
     createdAt: row.created_at,
+    comment: row.comment,
+    desiredDeliveryDate: row.desired_delivery_date,
     items,
   };
 }
@@ -56,6 +60,8 @@ function mapOrder(row: OrderRow, items: OrderItem[]): Order {
 export interface CreateOrderInput {
   userId: number;
   items: Array<{ productId: number; quantity: number }>;
+  comment?: string | null;
+  desiredDeliveryDate?: string | null;
 }
 
 export const orderRepo = {
@@ -70,9 +76,15 @@ export const orderRepo = {
 
       const orderId = db
         .prepare(
-          "INSERT INTO orders (user_id, status, total, created_at) VALUES (?, 'new', 0, ?)",
+          `INSERT INTO orders (user_id, status, total, created_at, comment, desired_delivery_date)
+           VALUES (?, 'new', 0, ?, ?, ?)`,
         )
-        .run(data.userId, now).lastInsertRowid as number;
+        .run(
+          data.userId,
+          now,
+          data.comment ?? null,
+          data.desiredDeliveryDate ?? null,
+        ).lastInsertRowid as number;
 
       const getProduct = db.prepare(
         "SELECT name, sku, unit, base_price, min_batch FROM products WHERE id = ?",

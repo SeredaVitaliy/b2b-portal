@@ -5,6 +5,7 @@ import { DeleteOutlined } from "@ant-design/icons";
 import {
   Button,
   Card,
+  DatePicker,
   Empty,
   Input,
   message,
@@ -17,6 +18,7 @@ import QuantityStepper from "@/components/QuantityStepper/QuantityStepper";
 import { useState } from "react";
 import { createOrder } from "@/api/OrderApi";
 import { createTemplate } from "@/api/TemplateApi";
+import dayjs from "dayjs";
 
 export default function CartPage() {
   const dispatch = useAppDispatch();
@@ -32,6 +34,9 @@ export default function CartPage() {
   const [isTemplateOpen, setIsTemplateOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+
+  const [comment, setComment] = useState("");
+  const [deliveryDate, setDeliveryDate] = useState<string | null>(null);
 
   if (items.length === 0) {
     return (
@@ -73,6 +78,8 @@ export default function CartPage() {
     try {
       const order = await createOrder(
         items.map((i) => ({ productId: i.product.id, quantity: i.quantity })),
+        comment.trim() || undefined,
+        deliveryDate ?? undefined,
       );
       dispatch(clearCart());
       message.success(`Заказ №${order.id} оформлен`);
@@ -153,6 +160,30 @@ export default function CartPage() {
             </div>
           );
         })}
+      </Card>
+      <Card style={{ marginTop: 16 }}>
+        {" "}
+        {/* ← НОВОЕ, вставляешь это */}
+        <Typography.Text strong>Комментарий к заказу</Typography.Text>
+        <Input.TextArea
+          rows={3}
+          maxLength={1000}
+          placeholder="Например: привезти до обеда, позвонить на складе"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          style={{ marginTop: 8, marginBottom: 16 }}
+        />
+        <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
+          Желаемая дата доставки
+        </Typography.Text>
+        <DatePicker
+          value={deliveryDate ? dayjs(deliveryDate) : null}
+          onChange={(_, dateString) =>
+            setDeliveryDate((dateString as string) || null)
+          }
+          disabledDate={(current) => current.isBefore(dayjs(), "day")}
+          placeholder="Выберите дату"
+        />
       </Card>
       <div
         style={{

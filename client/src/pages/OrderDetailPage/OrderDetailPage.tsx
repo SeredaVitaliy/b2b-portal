@@ -78,7 +78,17 @@ export default function OrderDetailPage() {
       <Typography.Text type="secondary">
         {formatDateTime(order.createdAt)}
       </Typography.Text>
-
+      {order.desiredDeliveryDate && (
+        <Typography.Paragraph style={{ marginTop: 8, marginBottom: 0 }}>
+          <Typography.Text strong>Желаемая дата доставки:</Typography.Text>{" "}
+          {order.desiredDeliveryDate}
+        </Typography.Paragraph>
+      )}
+      {order.comment && (
+        <Typography.Paragraph style={{ marginBottom: 0 }}>
+          <Typography.Text strong>Комментарий:</Typography.Text> {order.comment}
+        </Typography.Paragraph>
+      )}
       <Card style={{ marginTop: 16 }}>
         {order.items.map((item) => (
           <div

@@ -24,8 +24,27 @@ db.function("lower_u", { deterministic: true }, (value: unknown) =>
   value == null ? value : String(value).toLowerCase().replace(/ё/g, "е"),
 );
 
+/**
+ * Добавляет колонку в существующую таблицу, если её ещё нет.
+ * SQLite не умеет "ADD COLUMN IF NOT EXISTS", а schema.sql прогоняется на каждом
+ * старте — поэтому проверяем через PRAGMA table_info, чтобы ALTER не падал на второй запуск.
+ */
+function addColumnIfMissing(table: string, column: string, definition: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{
+    name: string;
+  }>;
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
 /** Накатывает схему из schema.sql. Безопасно вызывать многократно. */
 export function initSchema(): void {
   const schema = readFileSync(resolve(here, "schema.sql"), "utf-8");
   db.exec(schema);
+
+  // Миграции для таблиц, созданных до появления этих колонок (в CREATE TABLE
+  // они уже есть — это для баз, заведённых раньше).
+  addColumnIfMissing("orders", "comment", "TEXT");
+  addColumnIfMissing("orders", "desired_delivery_date", "TEXT");
 }

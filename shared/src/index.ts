@@ -99,6 +99,10 @@ export interface Order {
   total: number;
   /** Unix-время (сек) создания. */
   createdAt: number;
+  /** Комментарий закупщика к заказу (необязательный). */
+  comment: string | null;
+  /** Желаемая дата доставки в формате 'YYYY-MM-DD' (необязательная). */
+  desiredDeliveryDate: string | null;
   items: OrderItem[];
 }
 
@@ -111,6 +115,10 @@ export interface CreateOrderItem {
 /** Тело POST /orders. Цены клиент НЕ присылает — их считает сервер. */
 export interface CreateOrderRequest {
   items: CreateOrderItem[];
+  /** Необязательный комментарий к заказу. */
+  comment?: string;
+  /** Необязательная желаемая дата доставки, 'YYYY-MM-DD'. */
+  desiredDeliveryDate?: string;
 }
 
 // ---------- Шаблоны регулярных закупок ----------

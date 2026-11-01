@@ -50,12 +50,14 @@ CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
 
 -- Шапка заказа. Принадлежит пользователю, который его оформил.
 CREATE TABLE IF NOT EXISTS orders (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id    INTEGER NOT NULL REFERENCES users(id),
-  status     TEXT NOT NULL DEFAULT 'new'
-             CHECK (status IN ('new', 'processing', 'shipped', 'cancelled')),
-  total      REAL NOT NULL,            -- сумма заказа на момент оформления
-  created_at INTEGER NOT NULL          -- unix-время (сек) создания
+  id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id              INTEGER NOT NULL REFERENCES users(id),
+  status               TEXT NOT NULL DEFAULT 'new'
+                       CHECK (status IN ('new', 'processing', 'shipped', 'cancelled')),
+  total                REAL NOT NULL,     -- сумма заказа на момент оформления
+  created_at           INTEGER NOT NULL,  -- unix-время (сек) создания
+  comment              TEXT,              -- комментарий закупщика к заказу (nullable)
+  desired_delivery_date TEXT              -- желаемая дата доставки 'YYYY-MM-DD' (nullable)
 );
 
 -- Позиции заказа. Цена/название/единица — СНИМОК на момент заказа:

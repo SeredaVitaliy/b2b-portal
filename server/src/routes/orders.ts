@@ -31,8 +31,20 @@ orderRouter.post("/orders", (req, res) => {
     return;
   }
 
+  // Комментарий и дата доставки — необязательные. Текст подрезаем, дату принимаем
+  // только в строгом формате YYYY-MM-DD, иначе пишем null (мусору из тела не доверяем).
+  const comment =
+    typeof body.comment === "string" && body.comment.trim()
+      ? body.comment.trim().slice(0, 1000)
+      : null;
+  const desiredDeliveryDate =
+    typeof body.desiredDeliveryDate === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(body.desiredDeliveryDate)
+      ? body.desiredDeliveryDate
+      : null;
+
   try {
-    const order = orderRepo.create({ userId, items });
+    const order = orderRepo.create({ userId, items, comment, desiredDeliveryDate });
     res.status(201).json(order);
   } catch (e) {
     if (e instanceof OrderError) {

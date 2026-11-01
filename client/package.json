@@ -21,7 +21,8 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-redux": "^9.2.0",
-    "react-router-dom": "^7.14.2"
+    "react-router-dom": "^7.14.2",
+    "react-window": "^1.8.11"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",
@@ -30,6 +31,7 @@
     "@testing-library/user-event": "^14.6.8",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/react-window": "^1.8.8",
     "@vitejs/plugin-react": "^5.1.1",
     "jsdom": "^29.1.1",
     "typescript": "^5.9.3",

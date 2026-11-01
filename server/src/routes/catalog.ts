@@ -30,6 +30,12 @@ function parseNumber(value: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+// Верхняя граница размера страницы. Пагинация каталога шлёт 20, но
+// виртуализированная витрина «Все товары» тянет весь каталог одним запросом,
+// поэтому потолок поднят. Граница всё равно есть — чтобы клиент не мог
+// запросить произвольно большой ответ (защита от случайного/злого огромного LIMIT).
+const MAX_PAGE_SIZE = 2000;
+
 // GET /api/products?categoryId=&search=&minPrice=&maxPrice=&inStock=&sort=&page=&pageSize=
 catalogRouter.get("/products", (req, res) => {
   const { categoryId, search, minPrice, maxPrice, inStock, sort, page, pageSize } =
@@ -48,7 +54,7 @@ catalogRouter.get("/products", (req, res) => {
     inStock: inStock === "true" || inStock === "1",
     sort: sortValue,
     page: Math.max(1, parseNumber(page) ?? 1),
-    pageSize: Math.min(100, Math.max(1, parseNumber(pageSize) ?? 20)),
+    pageSize: Math.min(MAX_PAGE_SIZE, Math.max(1, parseNumber(pageSize) ?? 20)),
   };
 
   res.json(catalogRepo.listProducts(query));

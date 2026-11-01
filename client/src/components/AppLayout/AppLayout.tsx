@@ -64,6 +64,7 @@ export default function AppLayout() {
   const menuItems = [
     { key: "/", label: <Link to="/">Главная</Link> },
     { key: "/catalog", label: <Link to="/catalog">Каталог</Link> },
+    { key: "/all-products", label: <Link to="/all-products">Все товары</Link> },
     { key: "/orders", label: <Link to="/orders">Мои заказы</Link> },
     { key: "/favorites", label: <Link to="/favorites">Избранное</Link> },
     { key: "/templates", label: <Link to="/templates">Шаблоны</Link> },
@@ -73,17 +74,19 @@ export default function AppLayout() {
   ];
 
   // Какой пункт меню подсветить: по началу пути (чтобы /catalog/5 и /orders/3 тоже подсвечивались).
-  const activeKey = location.pathname.startsWith("/catalog")
-    ? "/catalog"
-    : location.pathname.startsWith("/orders")
-      ? "/orders"
-      : location.pathname.startsWith("/favorites")
-        ? "/favorites"
-        : location.pathname.startsWith("/templates")
-          ? "/templates"
-          : location.pathname.startsWith("/users")
-            ? "/users"
-            : "/";
+  const activeKey = location.pathname.startsWith("/all-products")
+    ? "/all-products"
+    : location.pathname.startsWith("/catalog")
+      ? "/catalog"
+      : location.pathname.startsWith("/orders")
+        ? "/orders"
+        : location.pathname.startsWith("/favorites")
+          ? "/favorites"
+          : location.pathname.startsWith("/templates")
+            ? "/templates"
+            : location.pathname.startsWith("/users")
+              ? "/users"
+              : "/";
 
   const cartPreview = (
     <div style={{ width: 280 }}>

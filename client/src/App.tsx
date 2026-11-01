@@ -14,6 +14,7 @@ import OrdersPage from "./pages/OrdersPage/OrdersPage";
 import OrderDetailPage from "./pages/OrderDetailPage/OrderDetailPage";
 import FavoritesPage from "./pages/FavoritesPage/FavoritesPage";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
+import UsersPage from "./pages/UsersPage/UsersPage";
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -35,6 +36,7 @@ const router = createBrowserRouter([
           { path: "/orders/:id", element: <OrderDetailPage /> },
           { path: "/favorites", element: <FavoritesPage /> },
           { path: "/templates", element: <TemplatesPage /> },
+          { path: "/users", element: <UsersPage /> },
         ],
       },
     ],

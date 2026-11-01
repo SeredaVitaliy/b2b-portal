@@ -34,5 +34,21 @@ export const userRepo = {
     return row ? mapUser(row) : undefined;
   },
 
+  /** Все пользователи (для админского управления ролями). */
+  listAll(): User[] {
+    const rows = db
+      .prepare("SELECT * FROM users ORDER BY id")
+      .all() as UserRow[];
+    return rows.map(mapUser);
+  },
+
+  /** Сменить роль пользователя. Возвращает обновлённого или undefined, если его нет. */
+  updateRole(id: number, role: Role): User | undefined {
+    const info = db
+      .prepare("UPDATE users SET role = ? WHERE id = ?")
+      .run(role, id);
+    return info.changes > 0 ? this.findById(id) : undefined;
+  },
+
   toDomain: mapUser,
 };

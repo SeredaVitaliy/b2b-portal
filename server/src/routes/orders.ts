@@ -3,6 +3,7 @@ import type { CreateOrderRequest } from "@b2b/shared";
 import { authenticate } from "../middleware/auth";
 import { orderRepo, OrderError } from "../repositories/orderRepo";
 import { catalogRepo } from "../repositories/catalogRepo";
+import { broadcastStockFor } from "../ws/stock";
 
 export const orderRouter = Router();
 
@@ -45,6 +46,8 @@ orderRouter.post("/orders", (req, res) => {
 
   try {
     const order = orderRepo.create({ userId, items, comment, desiredDeliveryDate });
+    // Остаток заказанных товаров изменился — пушим новые значения всем клиентам.
+    broadcastStockFor(order.items.map((i) => i.productId));
     res.status(201).json(order);
   } catch (e) {
     if (e instanceof OrderError) {

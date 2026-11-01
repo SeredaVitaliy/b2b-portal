@@ -7,16 +7,18 @@ export const userRouter = Router();
 
 const ROLES: Role[] = ["buyer", "manager", "admin"];
 
-// Управление пользователями доступно только администратору.
-userRouter.use(authenticate, authorize("admin"));
+// Гвард вешаем НА КАЖДЫЙ роут, а не на весь роутер (userRouter.use(...)):
+// роутеры примонтированы на общий "/api", и router-level middleware сработал бы
+// для всех запросов /api/*, что ложно блокировало бы соседние роуты.
+const adminOnly = [authenticate, authorize("admin")];
 
 // GET /api/users — все пользователи.
-userRouter.get("/users", (_req, res) => {
+userRouter.get("/users", adminOnly, (_req, res) => {
   res.json(userRepo.listAll());
 });
 
 // PATCH /api/users/:id/role — сменить роль пользователя.
-userRouter.patch("/users/:id/role", (req, res) => {
+userRouter.patch("/users/:id/role", adminOnly, (req, res) => {
   const id = Number(req.params.id);
   const role = (req.body as { role?: unknown }).role;
 

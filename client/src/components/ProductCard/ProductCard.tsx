@@ -28,7 +28,10 @@ export default function ProductCard({
   highlight,
 }: Props) {
   const [imageFailed, setImageFailed] = useState(false);
-  const stock = stockMeta[product.stockStatus];
+  // Live-остаток из WebSocket (если прилетал); иначе — исходный из каталога.
+  const live = useAppSelector((state) => state.stock.byId[product.id]);
+  const currentStatus = live?.stockStatus ?? product.stockStatus;
+  const stock = stockMeta[currentStatus];
   const unit = unitLabel[product.unit];
   const imageUrl = productImageUrl(product, categoryName);
   const showImage = imageUrl && !imageFailed;
@@ -144,7 +147,7 @@ export default function ProductCard({
           </Typography.Text>
 
           <div onClick={stopNav}>
-            {product.stockStatus === "out" ? (
+            {currentStatus === "out" ? (
               <Button block disabled>
                 Нет в наличии
               </Button>

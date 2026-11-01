@@ -24,6 +24,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { useEffect } from "react";
 import { getFavorites } from "@/api/FavoritesApi";
 import { setFavorites } from "@/slices/favoritesSlice";
+import { useStockSocket } from "@/hooks/useStockSocket";
 
 const { Header, Content, Footer } = Layout;
 
@@ -38,6 +39,7 @@ export default function AppLayout() {
     (sum, i) => sum + i.product.basePrice * i.quantity,
     0,
   );
+  useStockSocket();
 
   useEffect(() => {
     getFavorites()
@@ -82,7 +84,6 @@ export default function AppLayout() {
           : location.pathname.startsWith("/users")
             ? "/users"
             : "/";
-          
 
   const cartPreview = (
     <div style={{ width: 280 }}>

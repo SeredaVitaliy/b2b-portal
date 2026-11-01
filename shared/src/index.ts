@@ -151,6 +151,25 @@ export interface CreateOrderTemplateRequest {
   items: CreateOrderTemplateItem[];
 }
 
+// ---------- Реалтайм: остатки через WebSocket ----------
+
+/** Сообщение об изменении остатка товара, которое сервер шлёт по WebSocket. */
+export interface StockUpdateMessage {
+  type: "stock";
+  productId: number;
+  stock: number;
+  stockStatus: StockStatus;
+  /** Unix-время (мс) обновления — версия, чтобы не применять устаревшее. */
+  updatedAt: number;
+}
+
+/** Снимок остатка одного товара для резервного polling по REST (GET /stock). */
+export interface StockSnapshotItem {
+  productId: number;
+  stock: number;
+  stockStatus: StockStatus;
+}
+
 // ---------- Общие обёртки ----------
 
 export interface Paginated<T> {

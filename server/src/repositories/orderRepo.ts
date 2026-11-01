@@ -94,6 +94,11 @@ export const orderRepo = {
            (order_id, product_id, name, sku, unit, unit_price, quantity)
          VALUES (@orderId, @productId, @name, @sku, @unit, @unitPrice, @quantity)`,
       );
+      // Списываем остаток заказанного товара (не ниже 0). Делаем это в той же
+      // транзакции, что и создание заказа — либо всё, либо ничего.
+      const decStock = db.prepare(
+        "UPDATE products SET stock = MAX(0, stock - ?) WHERE id = ?",
+      );
 
       let total = 0;
       for (const line of data.items) {
@@ -117,6 +122,7 @@ export const orderRepo = {
           unitPrice: p.base_price,
           quantity: qty,
         });
+        decStock.run(qty, line.productId);
       }
 
       db.prepare("UPDATE orders SET total = ? WHERE id = ?").run(total, orderId);

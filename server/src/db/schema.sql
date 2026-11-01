@@ -80,3 +80,25 @@ CREATE TABLE IF NOT EXISTS favorites (
   product_id INTEGER NOT NULL REFERENCES products(id),
   PRIMARY KEY (user_id, product_id)
 );
+
+-- Шаблон регулярной закупки: именованный набор позиций пользователя.
+CREATE TABLE IF NOT EXISTS order_templates (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL REFERENCES users(id),
+  name       TEXT NOT NULL,
+  created_at INTEGER NOT NULL          -- unix-время (сек) создания
+);
+
+-- Позиции шаблона. В отличие от order_items тут нет снимка цены:
+-- при применении шаблона цена берётся актуальная из каталога.
+-- name храним как снимок — чтобы список шаблонов читался, даже если товар убрали.
+CREATE TABLE IF NOT EXISTS order_template_items (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  template_id INTEGER NOT NULL REFERENCES order_templates(id) ON DELETE CASCADE,
+  product_id  INTEGER NOT NULL REFERENCES products(id),
+  name        TEXT NOT NULL,            -- снимок названия для отображения
+  quantity    INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_templates_user ON order_templates(user_id);
+CREATE INDEX IF NOT EXISTS idx_order_template_items_tpl ON order_template_items(template_id);

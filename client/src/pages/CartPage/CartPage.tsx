@@ -2,11 +2,21 @@ import { formatPrice, productImageUrl, unitLabel } from "@/lib/product";
 import { clearCart, removeItem, setQuantity } from "@/slices/cartSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { DeleteOutlined } from "@ant-design/icons";
-import { Button, Card, Empty, message, Space, Typography } from "antd";
+import {
+  Button,
+  Card,
+  Empty,
+  Input,
+  message,
+  Modal,
+  Space,
+  Typography,
+} from "antd";
 import { Link, useNavigate } from "react-router-dom";
 import QuantityStepper from "@/components/QuantityStepper/QuantityStepper";
 import { useState } from "react";
 import { createOrder } from "@/api/OrderApi";
+import { createTemplate } from "@/api/TemplateApi";
 
 export default function CartPage() {
   const dispatch = useAppDispatch();
@@ -19,6 +29,10 @@ export default function CartPage() {
   const navigate = useNavigate();
   const [isPlacing, setIsPlacing] = useState(false);
 
+  const [isTemplateOpen, setIsTemplateOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+
   if (items.length === 0) {
     return (
       <Empty description="Корзина пуста" style={{ padding: 60 }}>
@@ -28,6 +42,31 @@ export default function CartPage() {
       </Empty>
     );
   }
+
+  const handleSaveTemplate = async () => {
+    const name = templateName.trim();
+    if (!name) {
+      message.warning("Введите название шаблона");
+      return;
+    }
+    setIsSavingTemplate(true);
+    try {
+      await createTemplate(
+        name,
+        items.map((i) => ({
+          productId: i.product.id,
+          quantity: i.quantity,
+        })),
+      );
+      message.success("Шаблон сохранён");
+      setIsTemplateOpen(false);
+      setTemplateName("");
+    } catch (error) {
+      message.error("Не удалось сохранить шаблон");
+    } finally {
+      setIsSavingTemplate(false);
+    }
+  };
 
   const handleCheckout = async () => {
     setIsPlacing(true);
@@ -108,6 +147,9 @@ export default function CartPage() {
                 icon={<DeleteOutlined />}
                 onClick={() => dispatch(removeItem(product.id))}
               />
+              <Button onClick={() => setIsTemplateOpen(true)}>
+                Сохранить как шаблон
+              </Button>
             </div>
           );
         })}
@@ -139,6 +181,22 @@ export default function CartPage() {
           </Button>
         </Space>
       </div>
+      <Modal
+        title="Новый шаблон закупки"
+        open={isTemplateOpen}
+        onOk={handleSaveTemplate}
+        onCancel={() => setIsTemplateOpen(false)}
+        confirmLoading={isSavingTemplate}
+        okText="Сохранить"
+        cancelText="Отмена"
+      >
+        <Input
+          placeholder="Например: Еженедельная закупка"
+          value={templateName}
+          onChange={(e) => setTemplateName(e.target.value)}
+          onPressEnter={handleSaveTemplate}
+        />
+      </Modal>
     </div>
   );
 }

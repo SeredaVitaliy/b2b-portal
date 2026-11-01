@@ -6,6 +6,7 @@ import { authRouter } from "./routes/auth";
 import { catalogRouter } from "./routes/catalog";
 import { orderRouter } from "./routes/orders";
 import { favoritesRouter } from "./routes/favorites";
+import { templateRouter } from "./routes/templates";
 
 initSchema();
 
@@ -21,6 +22,7 @@ app.use("/api/auth", authRouter);
 app.use("/api", catalogRouter);
 app.use("/api", orderRouter);
 app.use("/api", favoritesRouter);
+app.use("/api", templateRouter);
 
 app.listen(config.port, () => {
   console.log(`API слушает http://localhost:${config.port}`);

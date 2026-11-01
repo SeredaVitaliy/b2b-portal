@@ -113,6 +113,36 @@ export interface CreateOrderRequest {
   items: CreateOrderItem[];
 }
 
+// ---------- Шаблоны регулярных закупок ----------
+
+/** Позиция шаблона. Цены нет: при применении берётся актуальная из каталога. */
+export interface OrderTemplateItem {
+  productId: number;
+  /** Снимок названия на момент сохранения — для отображения списка. */
+  name: string;
+  quantity: number;
+}
+
+export interface OrderTemplate {
+  id: number;
+  name: string;
+  /** Unix-время (сек) создания. */
+  createdAt: number;
+  items: OrderTemplateItem[];
+}
+
+/** Одна позиция в запросе на создание шаблона: клиент шлёт только id и количество. */
+export interface CreateOrderTemplateItem {
+  productId: number;
+  quantity: number;
+}
+
+/** Тело POST /templates. Название + позиции; снимок имени проставит сервер. */
+export interface CreateOrderTemplateRequest {
+  name: string;
+  items: CreateOrderTemplateItem[];
+}
+
 // ---------- Общие обёртки ----------
 
 export interface Paginated<T> {

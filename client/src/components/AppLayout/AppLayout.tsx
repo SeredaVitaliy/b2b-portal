@@ -64,6 +64,7 @@ export default function AppLayout() {
     { key: "/catalog", label: <Link to="/catalog">Каталог</Link> },
     { key: "/orders", label: <Link to="/orders">Мои заказы</Link> },
     { key: "/favorites", label: <Link to="/favorites">Избранное</Link> },
+    { key: "/templates", label: <Link to="/templates">Шаблоны</Link> },
   ];
 
   // Какой пункт меню подсветить: по началу пути (чтобы /catalog/5 и /orders/3 тоже подсвечивались).
@@ -73,7 +74,9 @@ export default function AppLayout() {
       ? "/orders"
       : location.pathname.startsWith("/favorites")
         ? "/favorites"
-        : "/";
+        : location.pathname.startsWith("/templates")
+          ? "/templates"
+          : "/";
 
   const cartPreview = (
     <div style={{ width: 280 }}>

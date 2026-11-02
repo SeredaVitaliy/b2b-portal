@@ -25,6 +25,7 @@ import {
   type EditableField,
   type CellRef,
 } from "@/slices/massEditSlice";
+import { exportCatalogCsv, exportCatalogXlsx } from "@/lib/csvExport";
 
 const ROW_HEIGHT = 56;
 
@@ -317,6 +318,12 @@ export default function MassEditPage() {
           <Typography.Text type="secondary">
             Изменено: {updates.length}
           </Typography.Text>
+          <Button onClick={() => exportCatalogCsv(products)}>
+            Экспорт CSV
+          </Button>
+          <Button onClick={() => exportCatalogXlsx(products)}>
+            Экспорт Excel
+          </Button>
           <Button
             onClick={() => {
               dispatch(clearDrafts(products.map((p) => p.id)));

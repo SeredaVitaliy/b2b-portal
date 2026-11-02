@@ -1,4 +1,10 @@
-import type { Category, Paginated, Product, Unit } from "@b2b/shared";
+import type {
+  Category,
+  Paginated,
+  Product,
+  ProductBulkUpdate,
+  Unit,
+} from "@b2b/shared";
 import { db } from "../db";
 import { stockStatus } from "../lib/stock";
 
@@ -138,5 +144,36 @@ export const catalogRepo = {
       .prepare(`SELECT * FROM products WHERE id IN (${placeholders})`)
       .all(...ids) as ProductRow[];
     return rows.map(mapProduct);
+  },
+
+  // Массовое обновление товаров (цена/остаток) из Excel-подобного редактора.
+  // Вся пачка — в ОДНОЙ транзакции: либо применились все правки, либо ни одной.
+  // Возвращает актуальные версии реально изменённых товаров.
+  bulkUpdate(updates: ProductBulkUpdate[]): Product[] {
+    const apply = db.transaction((items: ProductBulkUpdate[]): number[] => {
+      const touched: number[] = [];
+      for (const u of items) {
+        // Собираем SET только из переданных полей — апдейт частичный.
+        const sets: string[] = [];
+        const params: Record<string, unknown> = { id: u.id };
+        if (u.basePrice !== undefined) {
+          sets.push("base_price = @basePrice");
+          params.basePrice = u.basePrice;
+        }
+        if (u.stock !== undefined) {
+          sets.push("stock = @stock");
+          params.stock = u.stock;
+        }
+        if (sets.length === 0) continue; // нечего менять — пропускаем
+        const info = db
+          .prepare(`UPDATE products SET ${sets.join(", ")} WHERE id = @id`)
+          .run(params);
+        if (info.changes > 0) touched.push(u.id); // id мог не существовать — тогда changes = 0
+      }
+      return touched;
+    });
+
+    const touched = apply(updates);
+    return this.getProductsByIds(touched);
   },
 };

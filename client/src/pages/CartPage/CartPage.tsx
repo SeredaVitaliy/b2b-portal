@@ -3,6 +3,7 @@ import { clearCart, removeItem, setQuantity } from "@/slices/cartSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { DeleteOutlined } from "@ant-design/icons";
 import {
+  Alert,
   Button,
   Card,
   DatePicker,
@@ -11,18 +12,39 @@ import {
   message,
   Modal,
   Space,
+  Tag,
   Typography,
 } from "antd";
 import { Link, useNavigate } from "react-router-dom";
 import QuantityStepper from "@/components/QuantityStepper/QuantityStepper";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createOrder } from "@/api/OrderApi";
 import { createTemplate } from "@/api/TemplateApi";
 import dayjs from "dayjs";
+import { Product } from "@b2b/shared";
+import { getStockSnapshot } from "@/api/StockApi";
+import { applyStockUpdate } from "@/slices/stockSlice";
+
+type Availability =
+  | { ok: true }
+  | { ok: false; reason: "out" | "short"; stock: number };
+
+function getAvailability(
+  product: Product,
+  quantity: number,
+  liveById: Record<number, { stock: number } | undefined>,
+): Availability {
+  const stock = liveById[product.id]?.stock ?? product.stock;
+  if (stock <= 0) return { ok: false, reason: "out", stock };
+  if (quantity > stock) return { ok: false, reason: "short", stock };
+  return { ok: true };
+}
 
 export default function CartPage() {
   const dispatch = useAppDispatch();
   const items = useAppSelector((state) => state.cart.items);
+
+  const liveById = useAppSelector((state) => state.stock.byId);
   const totalUnits = items.reduce((sum, i) => sum + i.quantity, 0);
   const totalPrice = items.reduce(
     (sum, i) => sum + i.product.basePrice * i.quantity,
@@ -37,6 +59,32 @@ export default function CartPage() {
 
   const [comment, setComment] = useState("");
   const [deliveryDate, setDeliveryDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    getStockSnapshot()
+      .then((snapshot) => {
+        const inCart = new Set(items.map((i) => i.product.id));
+        snapshot
+          .filter((s) => inCart.has(s.productId))
+          .forEach((s) =>
+            dispatch(
+              applyStockUpdate({
+                productId: s.productId,
+                stock: s.stock,
+                stockStatus: s.stockStatus,
+                updatedAt: Date.now(),
+              }),
+            ),
+          );
+      })
+      .catch(() => {});
+  }, []);
+
+  const blockingItems = items.filter(
+    (i) => !getAvailability(i.product, i.quantity, liveById).ok,
+  );
+
+  const hasBlocking = blockingItems.length > 0;
 
   if (items.length === 0) {
     return (
@@ -73,6 +121,10 @@ export default function CartPage() {
     }
   };
 
+  const handleRemoveUnavailable = () => {
+    blockingItems.forEach((i) => dispatch(removeItem(i.product.id)));
+  };
+
   const handleCheckout = async () => {
     setIsPlacing(true);
     try {
@@ -85,7 +137,10 @@ export default function CartPage() {
       message.success(`Заказ №${order.id} оформлен`);
       navigate("/orders");
     } catch (error) {
-      message.error("Не удалось оформить заказ");
+      const serverMessage = (
+        error as { response?: { data?: { message?: string } } }
+      ).response?.data?.message;
+      message.error(serverMessage ?? "Не удалось оформить заказ");
     } finally {
       setIsPlacing(false);
     }
@@ -94,11 +149,28 @@ export default function CartPage() {
   return (
     <div>
       <Typography.Title level={2}>Корзина</Typography.Title>
+
+      {hasBlocking && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Некоторые товары недоступны"
+          description="Уберите их из корзины или уменьшите количество — иначе заказ не оформить."
+          action={
+            <Button size="small" onClick={handleRemoveUnavailable}>
+              Убрать недоступные
+            </Button>
+          }
+        />
+      )}
+
       <Card>
         {items.map((item) => {
           const { product, quantity } = item;
           const unit = unitLabel[product.unit];
           const imageUrl = productImageUrl(product);
+          const av = getAvailability(product, quantity, liveById);
 
           return (
             <div
@@ -109,6 +181,7 @@ export default function CartPage() {
                 gap: 16,
                 padding: "12px 0",
                 borderBottom: "1px solid #f0f0f0",
+                background: av.ok ? undefined : "fff1f0",
               }}
             >
               <div style={{ width: 56, textAlign: "center" }}>
@@ -133,6 +206,13 @@ export default function CartPage() {
                 >
                   Арт. {product.sku} · {formatPrice(product.basePrice)} / {unit}
                 </Typography.Text>
+                {!av.ok && (
+                  <Tag color="red" style={{ marginTop: 4 }}>
+                    {av.reason === "out"
+                      ? "Нет в наличии"
+                      : `В наличии только ${av.stock}`}
+                  </Tag>
+                )}
               </div>
               <QuantityStepper
                 value={quantity}
@@ -162,8 +242,6 @@ export default function CartPage() {
         })}
       </Card>
       <Card style={{ marginTop: 16 }}>
-        {" "}
-        {/* ← НОВОЕ, вставляешь это */}
         <Typography.Text strong>Комментарий к заказу</Typography.Text>
         <Input.TextArea
           rows={3}
@@ -207,6 +285,7 @@ export default function CartPage() {
             size="large"
             loading={isPlacing}
             onClick={handleCheckout}
+            disabled={hasBlocking}
           >
             Оформить заказ
           </Button>

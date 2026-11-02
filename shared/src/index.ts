@@ -170,6 +170,25 @@ export interface StockSnapshotItem {
   stockStatus: StockStatus;
 }
 
+// ---------- Массовое редактирование товаров ----------
+
+/**
+ * Одна правка товара в массовом редакторе (Excel-подобная таблица).
+ * id обязателен; поля изменяемые — любое можно опустить, но хотя бы одно должно быть.
+ */
+export interface ProductBulkUpdate {
+  id: number;
+  /** Новая базовая цена (>= 0). */
+  basePrice?: number;
+  /** Новый остаток на складе (целое >= 0). */
+  stock?: number;
+}
+
+/** Тело запроса PATCH /api/products/bulk — пачка правок за один раз. */
+export interface BulkUpdateProductsRequest {
+  updates: ProductBulkUpdate[];
+}
+
 // ---------- Общие обёртки ----------
 
 export interface Paginated<T> {

@@ -189,6 +189,20 @@ export interface BulkUpdateProductsRequest {
   updates: ProductBulkUpdate[];
 }
 
+/**
+ * Результат по ОДНОЙ строке пачки. Сервер применяет валидные строки и по каждой
+ * возвращает отдельный итог: успешные — с актуальным товаром, ошибочные — с текстом.
+ * Это позволяет клиенту откатить оптимистичное обновление только по упавшим строкам.
+ */
+export type BulkUpdateResult =
+  | { id: number; ok: true; product: Product }
+  | { id: number; ok: false; error: string };
+
+/** Ответ PATCH /api/products/bulk — построчный итог пачки. */
+export interface BulkUpdateProductsResponse {
+  results: BulkUpdateResult[];
+}
+
 // ---------- Общие обёртки ----------
 
 export interface Paginated<T> {

@@ -3,6 +3,7 @@ import authReducer from "@/slices/authSlice";
 import cartReducer from "@/slices/cartSlice";
 import favoritesReducer from "@/slices/favoritesSlice";
 import stockReducer from "@/slices/stockSlice";
+import massEditReducer from "@/slices/massEditSlice";
 
 export const store = configureStore({
   reducer: {
@@ -10,6 +11,7 @@ export const store = configureStore({
     cart: cartReducer,
     favorites: favoritesReducer,
     stock: stockReducer,
+    massEdit: massEditReducer,
   },
 });
 

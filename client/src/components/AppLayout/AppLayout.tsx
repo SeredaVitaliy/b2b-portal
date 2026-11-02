@@ -71,22 +71,32 @@ export default function AppLayout() {
     ...(user?.role === "admin"
       ? [{ key: "/users", label: <Link to="/users">Пользователи</Link> }]
       : []),
+    ...(user?.role === "admin" || user?.role === "manager"
+      ? [
+          {
+            key: "/mass-edit",
+            label: <Link to="/mass-edit">Редактор цен</Link>,
+          },
+        ]
+      : []),
   ];
 
   // Какой пункт меню подсветить: по началу пути (чтобы /catalog/5 и /orders/3 тоже подсвечивались).
-  const activeKey = location.pathname.startsWith("/all-products")
-    ? "/all-products"
-    : location.pathname.startsWith("/catalog")
-      ? "/catalog"
-      : location.pathname.startsWith("/orders")
-        ? "/orders"
-        : location.pathname.startsWith("/favorites")
-          ? "/favorites"
-          : location.pathname.startsWith("/templates")
-            ? "/templates"
-            : location.pathname.startsWith("/users")
-              ? "/users"
-              : "/";
+  const activeKey = location.pathname.startsWith("/mass-edit")
+    ? "/mass-edit"
+    : location.pathname.startsWith("/all-products")
+      ? "/all-products"
+      : location.pathname.startsWith("/catalog")
+        ? "/catalog"
+        : location.pathname.startsWith("/orders")
+          ? "/orders"
+          : location.pathname.startsWith("/favorites")
+            ? "/favorites"
+            : location.pathname.startsWith("/templates")
+              ? "/templates"
+              : location.pathname.startsWith("/users")
+                ? "/users"
+                : "/";
 
   const cartPreview = (
     <div style={{ width: 280 }}>

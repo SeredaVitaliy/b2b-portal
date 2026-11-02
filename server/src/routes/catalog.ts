@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import type { ProductBulkUpdate } from "@b2b/shared";
+import type { ProductBulkUpdate, BulkUpdateResult } from "@b2b/shared";
 import { authenticate, authorize } from "../middleware/auth";
 import { broadcastStockFor } from "../ws/stock";
 import {
@@ -83,6 +83,12 @@ const MAX_BULK_UPDATES = 2000;
 
 // PATCH /api/products/bulk — массовое обновление цены/остатка (Excel-редактор).
 // Должен стоять ВЫШЕ /products/:id (у :id метод GET, но держим рядом явно).
+//
+// Ответ — ПОСТРОЧНЫЙ: валидные строки применяются, по каждой возвращается
+// отдельный итог (ok + товар, либо ошибка). Это НЕ «всё-или-ничего»: одна битая
+// строка не рушит остальные, а клиент по итогам откатывает только упавшие строки.
+// Ошибки УРОВНЯ ЗАПРОСА (тело не массив / пусто / слишком большое) — всё ещё 400:
+// тут нечего применять построчно.
 catalogRouter.patch("/products/bulk", editorOnly, (req: Request, res: Response) => {
   const body = req.body as { updates?: unknown };
 
@@ -102,69 +108,76 @@ catalogRouter.patch("/products/bulk", editorOnly, (req: Request, res: Response) 
     return;
   }
 
-  // Валидируем КАЖДУЮ правку. Любая ошибка — отклоняем всю пачку (атомарность
-  // начинается уже на валидации: не хотим применить половину и упасть на второй).
-  const clean: ProductBulkUpdate[] = [];
-  for (let i = 0; i < body.updates.length; i++) {
-    const raw = body.updates[i] as Record<string, unknown>;
+  const results: BulkUpdateResult[] = [];
+  const valid: ProductBulkUpdate[] = [];
 
-    if (!raw || !Number.isInteger(raw.id) || (raw.id as number) <= 0) {
-      res.status(400).json({
-        error: "bad_request",
-        message: `Правка #${i}: некорректный id`,
+  // Валидируем КАЖДУЮ строку по отдельности. Невалидную сразу кладём в results
+  // как ошибку и идём дальше; валидные копим для применения.
+  for (const raw0 of body.updates) {
+    const raw = (raw0 ?? {}) as Record<string, unknown>;
+    const rawId = Number(raw.id);
+
+    if (!Number.isInteger(raw.id) || (raw.id as number) <= 0) {
+      results.push({
+        id: Number.isFinite(rawId) ? rawId : 0,
+        ok: false,
+        error: "Некорректный id",
       });
-      return;
+      continue;
     }
-
-    const update: ProductBulkUpdate = { id: raw.id as number };
+    const id = raw.id as number;
+    const update: ProductBulkUpdate = { id };
+    let fieldError: string | null = null;
 
     if (raw.basePrice !== undefined) {
       const price = raw.basePrice;
       if (typeof price !== "number" || !Number.isFinite(price) || price < 0) {
-        res.status(400).json({
-          error: "bad_request",
-          message: `Правка #${i}: цена должна быть числом >= 0`,
-        });
-        return;
+        fieldError = "Цена должна быть числом ≥ 0";
+      } else {
+        update.basePrice = price;
       }
-      update.basePrice = price;
     }
-
-    if (raw.stock !== undefined) {
+    if (!fieldError && raw.stock !== undefined) {
       const stock = raw.stock;
       if (typeof stock !== "number" || !Number.isInteger(stock) || stock < 0) {
-        res.status(400).json({
-          error: "bad_request",
-          message: `Правка #${i}: остаток должен быть целым числом >= 0`,
-        });
-        return;
+        fieldError = "Остаток должен быть целым числом ≥ 0";
+      } else {
+        update.stock = stock;
       }
-      update.stock = stock;
+    }
+    if (!fieldError && update.basePrice === undefined && update.stock === undefined) {
+      fieldError = "Нет полей для изменения";
     }
 
-    if (update.basePrice === undefined && update.stock === undefined) {
-      res.status(400).json({
-        error: "bad_request",
-        message: `Правка #${i}: нет полей для изменения (нужна цена или остаток)`,
-      });
-      return;
+    if (fieldError) {
+      results.push({ id, ok: false, error: fieldError });
+      continue;
     }
-
-    clean.push(update);
+    valid.push(update);
   }
 
-  const updated = catalogRepo.bulkUpdate(clean);
+  // Применяем валидные (внутри одной транзакции репозитория) и раскладываем итог.
+  const applied = catalogRepo.bulkUpdate(valid);
+  const appliedById = new Map(applied.map((p) => [p.id, p]));
+  const stockChangedIds: number[] = [];
+
+  for (const u of valid) {
+    const product = appliedById.get(u.id);
+    if (product) {
+      results.push({ id: u.id, ok: true, product });
+      if (u.stock !== undefined) stockChangedIds.push(u.id);
+    } else {
+      // id прошёл валидацию, но такого товара нет (или значение не изменилось).
+      results.push({ id: u.id, ok: false, error: "Товар не найден" });
+    }
+  }
 
   // Остаток изменился → живые теги в каталоге обновляем через тот же WS, что и заказы.
-  // Пушим только по товарам, где меняли именно stock (цена тегов наличия не трогает).
-  const stockChangedIds = clean
-    .filter((u) => u.stock !== undefined)
-    .map((u) => u.id);
   if (stockChangedIds.length > 0) {
     broadcastStockFor(stockChangedIds);
   }
 
-  res.json({ items: updated });
+  res.json({ results });
 });
 
 // GET /api/products/:id

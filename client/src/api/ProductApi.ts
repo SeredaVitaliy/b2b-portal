@@ -1,4 +1,10 @@
-import { Category, Paginated, Product } from "@b2b/shared";
+import {
+  BulkUpdateResult,
+  Category,
+  Paginated,
+  Product,
+  ProductBulkUpdate,
+} from "@b2b/shared";
 import api from "./axiosInstance";
 
 export type ProductSort =
@@ -59,6 +65,21 @@ export async function getProductsByIds(ids: number[]): Promise<Product[]> {
     return response.data;
   } catch (error) {
     console.error("Ошибка загрузки товаров:", error);
+    throw error;
+  }
+}
+
+export async function bulkUpdateProducts(
+  updates: ProductBulkUpdate[],
+): Promise<BulkUpdateResult[]> {
+  try {
+    const response = await api.patch<{ results: BulkUpdateResult[] }>(
+      "/products/bulk",
+      { updates },
+    );
+    return response.data.results;
+  } catch (error) {
+    console.error("Ошибка массового обновления:", error);
     throw error;
   }
 }

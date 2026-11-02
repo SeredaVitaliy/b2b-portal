@@ -1,5 +1,9 @@
 import { Router, type Request, type Response } from "express";
-import type { ProductBulkUpdate, BulkUpdateResult } from "@b2b/shared";
+import type {
+  ProductBulkUpdate,
+  BulkUpdateResult,
+  ImportRowResult,
+} from "@b2b/shared";
 import { authenticate, authorize } from "../middleware/auth";
 import { broadcastStockFor } from "../ws/stock";
 import {
@@ -173,6 +177,102 @@ catalogRouter.patch("/products/bulk", editorOnly, (req: Request, res: Response) 
   }
 
   // Остаток изменился → живые теги в каталоге обновляем через тот же WS, что и заказы.
+  if (stockChangedIds.length > 0) {
+    broadcastStockFor(stockChangedIds);
+  }
+
+  res.json({ results });
+});
+
+// Потолок строк в одном запросе импорта. Клиент шлёт батчами по 100,
+// но держим запас и границу от гигантских запросов.
+const MAX_IMPORT_ROWS = 1000;
+
+// POST /api/products/import — импорт прайса из CSV, ПО SKU, построчный результат.
+// Клиент уже распарсил CSV (Papa Parse в Web Worker) и провалидировал (Zod),
+// но сервер — источник правды: ре-валидирует поля и резолвит товар по артикулу.
+// Строки, которых нет в каталоге, отдаём как ошибку «SKU не найден» (для отчёта).
+catalogRouter.post("/products/import", editorOnly, (req: Request, res: Response) => {
+  const body = req.body as { rows?: unknown };
+
+  if (!Array.isArray(body.rows)) {
+    res.status(400).json({ error: "bad_request", message: "Ожидается массив rows" });
+    return;
+  }
+  if (body.rows.length === 0) {
+    res.status(400).json({ error: "bad_request", message: "Пустой список строк" });
+    return;
+  }
+  if (body.rows.length > MAX_IMPORT_ROWS) {
+    res.status(400).json({
+      error: "bad_request",
+      message: `Слишком много строк за раз (максимум ${MAX_IMPORT_ROWS})`,
+    });
+    return;
+  }
+
+  const results: ImportRowResult[] = [];
+  // Валидные правки с привязкой к SKU (чтобы разложить итог обратно по артикулу).
+  const valid: Array<{ sku: string; update: ProductBulkUpdate }> = [];
+
+  for (const raw0 of body.rows) {
+    const raw = (raw0 ?? {}) as Record<string, unknown>;
+    const sku = typeof raw.sku === "string" ? raw.sku.trim() : "";
+
+    if (!sku) {
+      results.push({ sku: String(raw.sku ?? ""), ok: false, error: "Пустой SKU" });
+      continue;
+    }
+    const product = catalogRepo.getProductBySku(sku);
+    if (!product) {
+      results.push({ sku, ok: false, error: "SKU не найден в каталоге" });
+      continue;
+    }
+
+    const update: ProductBulkUpdate = { id: product.id };
+    let fieldError: string | null = null;
+
+    if (raw.basePrice !== undefined) {
+      const price = raw.basePrice;
+      if (typeof price !== "number" || !Number.isFinite(price) || price < 0) {
+        fieldError = "Цена должна быть числом ≥ 0";
+      } else {
+        update.basePrice = price;
+      }
+    }
+    if (!fieldError && raw.stock !== undefined) {
+      const stock = raw.stock;
+      if (typeof stock !== "number" || !Number.isInteger(stock) || stock < 0) {
+        fieldError = "Остаток должен быть целым числом ≥ 0";
+      } else {
+        update.stock = stock;
+      }
+    }
+    if (!fieldError && update.basePrice === undefined && update.stock === undefined) {
+      fieldError = "Нет полей для импорта (нужна цена или остаток)";
+    }
+
+    if (fieldError) {
+      results.push({ sku, ok: false, error: fieldError });
+      continue;
+    }
+    valid.push({ sku, update });
+  }
+
+  const applied = catalogRepo.bulkUpdate(valid.map((v) => v.update));
+  const appliedById = new Map(applied.map((p) => [p.id, p]));
+  const stockChangedIds: number[] = [];
+
+  for (const v of valid) {
+    const product = appliedById.get(v.update.id);
+    if (product) {
+      results.push({ sku: v.sku, ok: true, product });
+      if (v.update.stock !== undefined) stockChangedIds.push(product.id);
+    } else {
+      results.push({ sku: v.sku, ok: false, error: "Не удалось применить" });
+    }
+  }
+
   if (stockChangedIds.length > 0) {
     broadcastStockFor(stockChangedIds);
   }

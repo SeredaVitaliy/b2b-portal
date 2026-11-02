@@ -1,7 +1,9 @@
 import {
   BulkUpdateResult,
   Category,
+  ImportRowResult,
   Paginated,
+  PriceImportRow,
   Product,
   ProductBulkUpdate,
 } from "@b2b/shared";
@@ -80,6 +82,21 @@ export async function bulkUpdateProducts(
     return response.data.results;
   } catch (error) {
     console.error("Ошибка массового обновления:", error);
+    throw error;
+  }
+}
+
+export async function importProducts(
+  rows: PriceImportRow[],
+): Promise<ImportRowResult[]> {
+  try {
+    const response = await api.post<{ results: ImportRowResult[] }>(
+      "/products/import",
+      { rows },
+    );
+    return response.data.results;
+  } catch (error) {
+    console.error("Ошибка импорта:", error);
     throw error;
   }
 }

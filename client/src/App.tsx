@@ -17,6 +17,7 @@ import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import AllProductsPage from "./pages/AllProductsPage/AllProductsPage";
 import MassEditPage from "./pages/MassEditPage/MassEditPage";
+import MassImportPage from "./pages/MassImportPage/MassImportPage";
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   {
@@ -39,6 +40,7 @@ const router = createBrowserRouter([
           { path: "/templates", element: <TemplatesPage /> },
           { path: "/users", element: <UsersPage /> },
           { path: "/mass-edit", element: <MassEditPage /> },
+          { path: "/import", element: <MassImportPage /> },
         ],
       },
     ],

@@ -203,6 +203,33 @@ export interface BulkUpdateProductsResponse {
   results: BulkUpdateResult[];
 }
 
+// ---------- Импорт прайс-листа из CSV ----------
+
+/**
+ * Одна строка импорта прайса. Идёт по SKU (внешний файл не знает внутренних id).
+ * Клиент парсит CSV и валидирует (Zod), сервер резолвит SKU и применяет.
+ */
+export interface PriceImportRow {
+  sku: string;
+  basePrice?: number;
+  stock?: number;
+}
+
+/** Результат импорта по одной строке (по SKU). */
+export type ImportRowResult =
+  | { sku: string; ok: true; product: Product }
+  | { sku: string; ok: false; error: string };
+
+/** Тело POST /api/products/import — пачка строк (клиент шлёт батчами). */
+export interface ImportProductsRequest {
+  rows: PriceImportRow[];
+}
+
+/** Ответ POST /api/products/import — построчный итог. */
+export interface ImportProductsResponse {
+  results: ImportRowResult[];
+}
+
 // ---------- Общие обёртки ----------
 
 export interface Paginated<T> {

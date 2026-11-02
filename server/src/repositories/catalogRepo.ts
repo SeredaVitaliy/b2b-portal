@@ -136,6 +136,14 @@ export const catalogRepo = {
     return row ? mapProduct(row) : undefined;
   },
 
+  // Товар по артикулу — нужен для импорта CSV (файл идёт по SKU, не по id).
+  getProductBySku(sku: string): Product | undefined {
+    const row = db.prepare("SELECT * FROM products WHERE sku = ?").get(sku) as
+      | ProductRow
+      | undefined;
+    return row ? mapProduct(row) : undefined;
+  },
+
   // Актуальные товары по списку id (для «Повторить заказ»). Отсутствующие просто не вернутся.
   getProductsByIds(ids: number[]): Product[] {
     if (ids.length === 0) return [];

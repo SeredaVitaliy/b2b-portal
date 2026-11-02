@@ -79,6 +79,9 @@ export default function AppLayout() {
           },
         ]
       : []),
+    ...(user?.role === "admin" || user?.role === "manager"
+      ? [{ key: "/import", label: <Link to="/import">Импорт CSV</Link> }]
+      : []),
   ];
 
   // Какой пункт меню подсветить: по началу пути (чтобы /catalog/5 и /orders/3 тоже подсвечивались).

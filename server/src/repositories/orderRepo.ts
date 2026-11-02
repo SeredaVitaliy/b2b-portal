@@ -31,6 +31,7 @@ interface ProductForOrder {
   unit: Unit;
   base_price: number;
   min_batch: number;
+  stock: number;
 }
 
 function mapItem(r: OrderItemRow): OrderItem {
@@ -87,7 +88,7 @@ export const orderRepo = {
         ).lastInsertRowid as number;
 
       const getProduct = db.prepare(
-        "SELECT name, sku, unit, base_price, min_batch FROM products WHERE id = ?",
+        "SELECT name, sku, unit, base_price, min_batch, stock FROM products WHERE id = ?",
       );
       const insertItem = db.prepare(
         `INSERT INTO order_items
@@ -109,6 +110,17 @@ export const orderRepo = {
         if (qty < p.min_batch) {
           throw new OrderError(
             `Для «${p.name}» минимальная партия ${p.min_batch}`,
+          );
+        }
+        // Проверка наличия — источник правды. Фронт тоже не даёт оформить
+        // недоступное, но остаток мог упасть между открытием корзины и отправкой
+        // (чужой заказ, WebSocket не успел). Бросаем в транзакции → заказ не пишется.
+        if (p.stock <= 0) {
+          throw new OrderError(`«${p.name}» закончился на складе`);
+        }
+        if (qty > p.stock) {
+          throw new OrderError(
+            `«${p.name}»: в наличии только ${p.stock}, а в заказе ${qty}`,
           );
         }
 

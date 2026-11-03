@@ -4,6 +4,7 @@ import cartReducer from "@/slices/cartSlice";
 import favoritesReducer from "@/slices/favoritesSlice";
 import stockReducer from "@/slices/stockSlice";
 import massEditReducer from "@/slices/massEditSlice";
+import pricingReducer from "@/slices/pricingSlice";
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     favorites: favoritesReducer,
     stock: stockReducer,
     massEdit: massEditReducer,
+    pricing: pricingReducer,
   },
 });
 

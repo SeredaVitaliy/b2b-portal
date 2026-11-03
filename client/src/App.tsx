@@ -18,6 +18,7 @@ import UsersPage from "./pages/UsersPage/UsersPage";
 import AllProductsPage from "./pages/AllProductsPage/AllProductsPage";
 import MassEditPage from "./pages/MassEditPage/MassEditPage";
 import MassImportPage from "./pages/MassImportPage/MassImportPage";
+import PricingPage from "./pages/PricingPage/PricingPage";
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   {
@@ -41,6 +42,7 @@ const router = createBrowserRouter([
           { path: "/users", element: <UsersPage /> },
           { path: "/mass-edit", element: <MassEditPage /> },
           { path: "/import", element: <MassImportPage /> },
+          { path: "/pricing", element: <PricingPage /> },
         ],
       },
     ],

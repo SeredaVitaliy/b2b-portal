@@ -230,6 +230,43 @@ export interface ImportProductsResponse {
   results: ImportRowResult[];
 }
 
+// ---------- Персональные прайс-листы ----------
+
+/** Клиент (компания), для которого ведём персональные цены. */
+export interface Company {
+  id: number;
+  name: string;
+}
+
+/** Уровень переопределения цены. */
+export type OverrideScope = "product" | "category";
+
+/**
+ * Переопределения цен одного клиента. Храним ТОЛЬКО переопределения:
+ * словари id → цена отдельно по товарам и по категориям.
+ * Итоговую цену товара считает клиент: товар > категория > базовая.
+ */
+export interface PriceOverrides {
+  companyId: number;
+  products: Record<number, number>;
+  categories: Record<number, number>;
+}
+
+/** Тело PUT /api/price-overrides — задать/обновить одно переопределение. */
+export interface SetPriceOverrideRequest {
+  companyId: number;
+  scope: OverrideScope;
+  refId: number;
+  price: number;
+}
+
+/** Тело DELETE /api/price-overrides — снять переопределение (вернуть наследование). */
+export interface DeletePriceOverrideRequest {
+  companyId: number;
+  scope: OverrideScope;
+  refId: number;
+}
+
 // ---------- Общие обёртки ----------
 
 export interface Paginated<T> {

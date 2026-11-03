@@ -104,3 +104,21 @@ CREATE TABLE IF NOT EXISTS order_template_items (
 
 CREATE INDEX IF NOT EXISTS idx_order_templates_user ON order_templates(user_id);
 CREATE INDEX IF NOT EXISTS idx_order_template_items_tpl ON order_template_items(template_id);
+
+-- Персональные переопределения цен клиента (компании).
+-- Храним ТОЛЬКО переопределения (не дублируем базовые цены). У строки задан
+-- РОВНО один из product_id / category_id (на уровне товара или категории).
+-- Приоритет при вычислении итоговой цены — на клиенте: товар > категория > база.
+CREATE TABLE IF NOT EXISTS price_overrides (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id  INTEGER NOT NULL REFERENCES companies(id),
+  product_id  INTEGER REFERENCES products(id),
+  category_id INTEGER REFERENCES categories(id),
+  price       REAL NOT NULL CHECK (price >= 0)
+);
+
+-- Одно переопределение на (клиент, товар) и на (клиент, категория).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_price_ovr_product
+  ON price_overrides(company_id, product_id) WHERE product_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_price_ovr_category
+  ON price_overrides(company_id, category_id) WHERE category_id IS NOT NULL;

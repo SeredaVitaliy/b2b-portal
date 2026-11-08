@@ -1,5 +1,6 @@
 import { getOrders } from "@/api/OrderApi";
 import { useRepeatOrder } from "@/hooks/useRepeatOrder";
+import SaveAsTemplateButton from "@/components/SaveAsTemplateButton/SaveAsTemplateButton";
 import { formatDateTime, orderStatusMeta } from "@/lib/order";
 import { formatPrice } from "@/lib/product";
 import { Order } from "@b2b/shared";
@@ -139,6 +140,15 @@ export default function OrdersPage() {
                     >
                       Повторить
                     </Button>
+                    <SaveAsTemplateButton
+                      size="small"
+                      stopPropagation
+                      defaultName={`Заказ №${order.id}`}
+                      items={order.items.map((i) => ({
+                        productId: i.productId,
+                        quantity: i.quantity,
+                      }))}
+                    />
                   </div>
                 </Card>
               </Link>

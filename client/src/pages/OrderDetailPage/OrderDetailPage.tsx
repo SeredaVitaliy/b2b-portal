@@ -7,6 +7,7 @@ import { Button, Card, Empty, Spin, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useRepeatOrder } from "@/hooks/useRepeatOrder";
+import SaveAsTemplateButton from "@/components/SaveAsTemplateButton/SaveAsTemplateButton";
 
 export default function OrderDetailPage() {
   const { id } = useParams();
@@ -74,6 +75,13 @@ export default function OrderDetailPage() {
         >
           Повторить заказ
         </Button>
+        <SaveAsTemplateButton
+          defaultName={`Заказ №${order.id}`}
+          items={order.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+          }))}
+        />
       </div>
       <Typography.Text type="secondary">
         {formatDateTime(order.createdAt)}

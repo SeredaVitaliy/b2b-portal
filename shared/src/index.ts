@@ -267,6 +267,47 @@ export interface DeletePriceOverrideRequest {
   refId: number;
 }
 
+// ---------- История изменений цены и остатка ----------
+
+/** Что именно поменяли у товара: базовую цену или остаток. */
+export type ChangeField = "price" | "stock";
+
+/**
+ * Одна запись журнала изменений по товару: кто, когда, что поменял и с какого
+ * значения на какое. sku/productName/userName приходят join'ом при чтении —
+ * чтобы общая страница истории сразу показывала товар и автора правки.
+ */
+export interface ProductChange {
+  id: number;
+  productId: number;
+  sku: string;
+  productName: string;
+  field: ChangeField;
+  oldValue: number;
+  newValue: number;
+  userId: number;
+  userName: string;
+  /** Unix-время (сек) изменения. */
+  changedAt: number;
+}
+
+/**
+ * Параметры запроса истории GET /api/price-history.
+ * Без productId и search — вся история; с productId — по одному товару
+ * (модалка), с search — поиск по артикулу/названию (общая страница).
+ */
+export interface ChangeHistoryQuery {
+  productId?: number;
+  search?: string;
+  field?: ChangeField;
+  /** Нижняя граница периода, 'YYYY-MM-DD' (включительно). */
+  from?: string;
+  /** Верхняя граница периода, 'YYYY-MM-DD' (включительно). */
+  to?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 // ---------- Общие обёртки ----------
 
 export interface Paginated<T> {

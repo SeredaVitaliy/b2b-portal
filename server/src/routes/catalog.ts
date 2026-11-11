@@ -161,7 +161,7 @@ catalogRouter.patch("/products/bulk", editorOnly, (req: Request, res: Response) 
   }
 
   // Применяем валидные (внутри одной транзакции репозитория) и раскладываем итог.
-  const applied = catalogRepo.bulkUpdate(valid);
+  const applied = catalogRepo.bulkUpdate(valid, req.user!.id);
   const appliedById = new Map(applied.map((p) => [p.id, p]));
   const stockChangedIds: number[] = [];
 
@@ -259,7 +259,10 @@ catalogRouter.post("/products/import", editorOnly, (req: Request, res: Response)
     valid.push({ sku, update });
   }
 
-  const applied = catalogRepo.bulkUpdate(valid.map((v) => v.update));
+  const applied = catalogRepo.bulkUpdate(
+    valid.map((v) => v.update),
+    req.user!.id,
+  );
   const appliedById = new Map(applied.map((p) => [p.id, p]));
   const stockChangedIds: number[] = [];
 

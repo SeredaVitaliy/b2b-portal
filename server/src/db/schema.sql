@@ -122,3 +122,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_price_ovr_product
   ON price_overrides(company_id, product_id) WHERE product_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_price_ovr_category
   ON price_overrides(company_id, category_id) WHERE category_id IS NOT NULL;
+
+-- Журнал изменений цены и остатка по товару: кто, когда, что и с какого на
+-- какое значение. Пишется ТОЛЬКО при ручных правках менеджера (массовое
+-- редактирование и импорт CSV) — одна строка на реально изменённое поле.
+-- Значения храним числом (REAL): для остатка это целое, тип поля различает field.
+CREATE TABLE IF NOT EXISTS price_history (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER NOT NULL REFERENCES products(id),
+  user_id    INTEGER NOT NULL REFERENCES users(id),  -- кто поменял
+  field      TEXT NOT NULL CHECK (field IN ('price', 'stock')),
+  old_value  REAL NOT NULL,
+  new_value  REAL NOT NULL,
+  changed_at INTEGER NOT NULL          -- unix-время (сек) изменения
+);
+
+-- По товару (модалка) — свежие сверху; по времени (общая страница с поиском).
+CREATE INDEX IF NOT EXISTS idx_price_history_product
+  ON price_history(product_id, changed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_price_history_changed
+  ON price_history(changed_at DESC);

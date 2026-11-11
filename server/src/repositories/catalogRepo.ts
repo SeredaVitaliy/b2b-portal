@@ -7,6 +7,7 @@ import type {
 } from "@b2b/shared";
 import { db } from "../db";
 import { stockStatus } from "../lib/stock";
+import { historyRepo, type HistoryEntry } from "./historyRepo";
 
 interface ProductRow {
   id: number;
@@ -154,13 +155,28 @@ export const catalogRepo = {
     return rows.map(mapProduct);
   },
 
-  // Массовое обновление товаров (цена/остаток) из Excel-подобного редактора.
-  // Вся пачка — в ОДНОЙ транзакции: либо применились все правки, либо ни одной.
-  // Возвращает актуальные версии реально изменённых товаров.
-  bulkUpdate(updates: ProductBulkUpdate[]): Product[] {
+  // Массовое обновление товаров (цена/остаток) из Excel-подобного редактора и
+  // из импорта CSV. Вся пачка — в ОДНОЙ транзакции: либо применились все правки,
+  // либо ни одной. Возвращает актуальные версии реально изменённых товаров.
+  //
+  // actorId — кто вносит правки (менеджер/админ). По каждому РЕАЛЬНО изменённому
+  // полю пишем строку в журнал истории — в той же транзакции, чтобы правка и
+  // запись «кто/когда/что» легли атомарно.
+  bulkUpdate(updates: ProductBulkUpdate[], actorId: number): Product[] {
+    const changedAt = Math.floor(Date.now() / 1000);
+
     const apply = db.transaction((items: ProductBulkUpdate[]): number[] => {
       const touched: number[] = [];
+      const history: HistoryEntry[] = [];
+
       for (const u of items) {
+        // Старые значения — ДО апдейта, чтобы записать в журнал «было → стало»
+        // и залогировать только то, что действительно изменилось.
+        const before = db
+          .prepare("SELECT base_price, stock FROM products WHERE id = ?")
+          .get(u.id) as { base_price: number; stock: number } | undefined;
+        if (!before) continue; // товара нет — пропускаем
+
         // Собираем SET только из переданных полей — апдейт частичный.
         const sets: string[] = [];
         const params: Record<string, unknown> = { id: u.id };
@@ -173,11 +189,36 @@ export const catalogRepo = {
           params.stock = u.stock;
         }
         if (sets.length === 0) continue; // нечего менять — пропускаем
-        const info = db
-          .prepare(`UPDATE products SET ${sets.join(", ")} WHERE id = @id`)
-          .run(params);
-        if (info.changes > 0) touched.push(u.id); // id мог не существовать — тогда changes = 0
+
+        db.prepare(`UPDATE products SET ${sets.join(", ")} WHERE id = @id`).run(
+          params,
+        );
+        touched.push(u.id);
+
+        // Журнал: только фактически изменившиеся поля (значение != прежнего).
+        if (u.basePrice !== undefined && u.basePrice !== before.base_price) {
+          history.push({
+            productId: u.id,
+            userId: actorId,
+            field: "price",
+            oldValue: before.base_price,
+            newValue: u.basePrice,
+            changedAt,
+          });
+        }
+        if (u.stock !== undefined && u.stock !== before.stock) {
+          history.push({
+            productId: u.id,
+            userId: actorId,
+            field: "stock",
+            oldValue: before.stock,
+            newValue: u.stock,
+            changedAt,
+          });
+        }
       }
+
+      historyRepo.insertMany(history);
       return touched;
     });
 

@@ -8,6 +8,7 @@ let db: (typeof import("../db"))["db"];
 let catalogRepo: (typeof import("./catalogRepo"))["catalogRepo"];
 
 let tmpDir: string;
+let userId: number; // автор правок (журнал истории ссылается на users)
 let productA: number; // цена 100, остаток 50
 let productB: number; // цена 50, остаток 50
 
@@ -21,6 +22,12 @@ beforeAll(async () => {
   dbMod.initSchema();
 
   catalogRepo = (await import("./catalogRepo")).catalogRepo;
+
+  userId = db
+    .prepare(
+      "INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)",
+    )
+    .run("mgr@test", "x", "Менеджер", "manager").lastInsertRowid as number;
 
   const catId = db
     .prepare("INSERT INTO categories (name, slug) VALUES (?, ?)")
@@ -43,9 +50,10 @@ afterAll(() => {
 
 describe("catalogRepo.bulkUpdate", () => {
   it("меняет и цену, и остаток, и возвращает актуальные товары", () => {
-    const updated = catalogRepo.bulkUpdate([
-      { id: productA, basePrice: 120, stock: 30 },
-    ]);
+    const updated = catalogRepo.bulkUpdate(
+      [{ id: productA, basePrice: 120, stock: 30 }],
+      userId,
+    );
 
     expect(updated).toHaveLength(1);
     const a = updated.find((p) => p.id === productA)!;
@@ -57,7 +65,7 @@ describe("catalogRepo.bulkUpdate", () => {
 
   it("частичный апдейт: меняем только остаток — цена не трогается", () => {
     const before = catalogRepo.getProduct(productB)!;
-    const updated = catalogRepo.bulkUpdate([{ id: productB, stock: 0 }]);
+    const updated = catalogRepo.bulkUpdate([{ id: productB, stock: 0 }], userId);
 
     const b = updated.find((p) => p.id === productB)!;
     expect(b.stock).toBe(0);
@@ -66,10 +74,13 @@ describe("catalogRepo.bulkUpdate", () => {
   });
 
   it("возвращает только реально изменённые товары; несуществующий id игнорируется без ошибки", () => {
-    const updated = catalogRepo.bulkUpdate([
-      { id: productA, basePrice: 999 },
-      { id: 999999, stock: 10 }, // такого товара нет → changes = 0, в результат не попадёт
-    ]);
+    const updated = catalogRepo.bulkUpdate(
+      [
+        { id: productA, basePrice: 999 },
+        { id: 999999, stock: 10 }, // такого товара нет → пропускаем, в результат не попадёт
+      ],
+      userId,
+    );
 
     expect(updated).toHaveLength(1);
     expect(updated[0].id).toBe(productA);

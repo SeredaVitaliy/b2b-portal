@@ -21,7 +21,7 @@ import { logout } from "@/api/AuthApi";
 import { tokenManager } from "@/api/tokenStorage";
 import { clearUser } from "@/slices/authSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { getFavorites } from "@/api/FavoritesApi";
 import { setFavorites } from "@/slices/favoritesSlice";
 import { useStockSocket } from "@/hooks/useStockSocket";
@@ -39,6 +39,7 @@ export default function AppLayout() {
     (sum, i) => sum + i.product.basePrice * i.quantity,
     0,
   );
+  const [cartHover, setCartHover] = useState(false);
   useStockSocket();
 
   useEffect(() => {
@@ -85,10 +86,20 @@ export default function AppLayout() {
     ...(user?.role === "admin" || user?.role === "manager"
       ? [{ key: "/pricing", label: <Link to="/pricing">Прайсы клиентов</Link> }]
       : []),
+    ...(user?.role === "admin" || user?.role === "manager"
+      ? [
+          {
+            key: "/change-history",
+            label: <Link to="/change-history">История изменений</Link>,
+          },
+        ]
+      : []),
   ];
 
   // Какой пункт меню подсветить: по началу пути (чтобы /catalog/5 и /orders/3 тоже подсвечивались).
-  const activeKey = location.pathname.startsWith("/mass-edit")
+  const activeKey = location.pathname.startsWith("/change-history")
+    ? "/change-history"
+    : location.pathname.startsWith("/mass-edit")
     ? "/mass-edit"
     : location.pathname.startsWith("/all-products")
       ? "/all-products"
@@ -186,7 +197,7 @@ export default function AppLayout() {
           style={{ flex: 1, minWidth: 0, background: "transparent" }}
         />
 
-        <Space size={12}>
+        <Space size={12} align="center">
           <Popover
             trigger="hover"
             placement="bottomRight"
@@ -194,12 +205,20 @@ export default function AppLayout() {
           >
             <Link
               to="/cart"
+              onMouseEnter={() => setCartHover(true)}
+              onMouseLeave={() => setCartHover(false)}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                height: "100%",
-                padding: "0 8px",
+                height: 40,
+                padding: "0 14px",
+                marginRight: 8,
+                borderRadius: 8,
                 color: "#fff",
+                background: cartHover
+                  ? "rgba(255,255,255,0.16)"
+                  : "transparent",
+                transition: "background 0.2s",
               }}
             >
               <Badge count={cartCount} size="small">

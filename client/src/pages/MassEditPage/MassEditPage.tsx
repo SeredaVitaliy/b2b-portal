@@ -26,6 +26,7 @@ import {
   type CellRef,
 } from "@/slices/massEditSlice";
 import { exportCatalogCsv, exportCatalogXlsx } from "@/lib/csvExport";
+import ChangeHistoryModal from "@/components/ChangeHistoryModal/ChangeHistoryModal";
 
 const ROW_HEIGHT = 56;
 
@@ -43,6 +44,7 @@ interface RowData {
     field: EditableField,
     value: number | null,
   ) => void;
+  onHistory: (product: Product) => void;
 }
 
 const cellKey = (id: number, field: EditableField) => `${id}:${field}`;
@@ -113,6 +115,11 @@ function Row({ index, style, data }: ListChildComponentProps<RowData>) {
       </div>
       {cell("basePrice", 130)}
       {cell("stock", 110)}
+      <div style={{ width: 90, textAlign: "center" }}>
+        <Button size="small" type="link" onClick={() => data.onHistory(p)}>
+          История
+        </Button>
+      </div>
     </div>
   );
 }
@@ -129,6 +136,7 @@ export default function MassEditPage() {
   const selected = useAppSelector((s) => s.massEdit.selected);
 
   const [fillValue, setFillValue] = useState<number | null>(null);
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
 
   const dragging = useRef(false);
   const anchor = useRef<{ row: number; field: EditableField } | null>(null);
@@ -356,6 +364,7 @@ export default function MassEditPage() {
         <div style={{ flex: 1 }}>Товар</div>
         <div style={{ width: 134, textAlign: "center" }}>Цена</div>
         <div style={{ width: 114, textAlign: "center" }}>Остаток</div>
+        <div style={{ width: 90, textAlign: "center" }}>История</div>
       </div>
 
       <Spin spinning={isLoading}>
@@ -374,6 +383,7 @@ export default function MassEditPage() {
                 onCellMouseDown,
                 onCellMouseEnter,
                 onCellChange,
+                onHistory: setHistoryProduct,
               }}
             >
               {Row}
@@ -381,6 +391,12 @@ export default function MassEditPage() {
           )}
         </div>
       </Spin>
+
+      <ChangeHistoryModal
+        productId={historyProduct?.id ?? null}
+        productName={historyProduct?.name}
+        onClose={() => setHistoryProduct(null)}
+      />
     </div>
   );
 }

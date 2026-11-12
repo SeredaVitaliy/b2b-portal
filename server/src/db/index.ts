@@ -47,4 +47,6 @@ export function initSchema(): void {
   // они уже есть — это для баз, заведённых раньше).
   addColumnIfMissing("orders", "comment", "TEXT");
   addColumnIfMissing("orders", "desired_delivery_date", "TEXT");
+  addColumnIfMissing("companies", "contract_number", "TEXT");
+  addColumnIfMissing("users", "phone", "TEXT");
 }

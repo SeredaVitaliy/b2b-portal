@@ -2,8 +2,9 @@
 -- По мере роста приложения сюда будут добавляться таблицы заказов, прайсов и т.д.
 
 CREATE TABLE IF NOT EXISTS companies (
-  id   INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  name            TEXT NOT NULL,
+  contract_number TEXT          -- номер договора клиента (nullable)
 );
 
 CREATE TABLE IF NOT EXISTS users (
@@ -12,7 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   name          TEXT NOT NULL,
   role          TEXT NOT NULL CHECK (role IN ('buyer', 'manager', 'admin')),
-  company_id    INTEGER REFERENCES companies(id)
+  company_id    INTEGER REFERENCES companies(id),
+  phone         TEXT          -- контактный телефон пользователя (nullable)
 );
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (

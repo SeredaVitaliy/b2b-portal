@@ -21,6 +21,7 @@ import MassImportPage from "./pages/MassImportPage/MassImportPage";
 import PricingPage from "./pages/PricingPage/PricingPage";
 import ChangeHistoryPage from "./pages/ChangeHistoryPage/ChangeHistoryPage";
 import CategoriesPage from "./pages/CategoriesPage/CategoriesPage";
+import ProfilePage from "./pages/ProfilePage/ProfilePage";
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   {
@@ -47,6 +48,7 @@ const router = createBrowserRouter([
           { path: "/pricing", element: <PricingPage /> },
           { path: "/change-history", element: <ChangeHistoryPage /> },
           { path: "/categories", element: <CategoriesPage /> },
+          { path: "/profile", element: <ProfilePage /> },
         ],
       },
     ],

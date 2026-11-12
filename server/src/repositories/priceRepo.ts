@@ -15,9 +15,26 @@ interface OverrideRow {
 export const priceRepo = {
   /** Все клиенты (компании) — для выбора в редакторе персональных цен. */
   listCompanies(): Company[] {
-    return db
-      .prepare("SELECT id, name FROM companies ORDER BY name")
-      .all() as Company[];
+    const rows = db
+      .prepare("SELECT id, name, contract_number FROM companies ORDER BY name")
+      .all() as Array<{ id: number; name: string; contract_number: string | null }>;
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      contractNumber: r.contract_number ?? null,
+    }));
+  },
+
+  /** Задать/очистить номер договора клиента (админ/менеджер). */
+  setContract(companyId: number, contractNumber: string | null): Company {
+    db.prepare("UPDATE companies SET contract_number = ? WHERE id = ?").run(
+      contractNumber,
+      companyId,
+    );
+    const row = db
+      .prepare("SELECT id, name, contract_number FROM companies WHERE id = ?")
+      .get(companyId) as { id: number; name: string; contract_number: string | null };
+    return { id: row.id, name: row.name, contractNumber: row.contract_number ?? null };
   },
 
   /** Переопределения одного клиента: раскладываем на словари по товарам и категориям. */

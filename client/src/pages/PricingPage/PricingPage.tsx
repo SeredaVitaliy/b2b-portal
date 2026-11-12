@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Empty,
+  Input,
   InputNumber,
   Select,
   Space,
@@ -18,6 +19,7 @@ import {
   getPriceOverrides,
   setPriceOverride,
   deletePriceOverride,
+  setClientContract,
 } from "@/api/PricingApi";
 import { useAllProducts } from "@/hooks/useAllProducts";
 import { resolvePrice } from "@/lib/pricing";
@@ -50,6 +52,10 @@ export default function PricingPage() {
   const [catPrice, setCatPrice] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Номер договора выбранного клиента (отдельная правка, свой запрос).
+  const [contract, setContract] = useState("");
+  const [savingContract, setSavingContract] = useState(false);
+
   const { data: clients = [] } = useQuery({
     queryKey: ["clients"],
     queryFn: getClients,
@@ -69,6 +75,26 @@ export default function PricingPage() {
     () => new Map(categories.map((c) => [c.id, c.name])),
     [categories],
   );
+
+  // Поле договора синхронизируем с выбранным клиентом.
+  const selectedClient = clients.find((c) => c.id === companyId);
+  useEffect(() => {
+    setContract(selectedClient?.contractNumber ?? "");
+  }, [selectedClient]);
+
+  const handleSaveContract = async () => {
+    if (companyId == null) return;
+    setSavingContract(true);
+    try {
+      await setClientContract(companyId, contract.trim() || null);
+      await queryClient.invalidateQueries({ queryKey: ["clients"] });
+      message.success("Номер договора сохранён");
+    } catch {
+      message.error("Не удалось сохранить договор");
+    } finally {
+      setSavingContract(false);
+    }
+  };
 
   const draftCount =
     Object.keys(productDrafts).length + Object.keys(categoryDrafts).length;
@@ -245,6 +271,19 @@ export default function PricingPage() {
         />
       ) : (
         <>
+          <Space wrap style={{ marginBottom: 12 }}>
+            <Typography.Text strong>Номер договора:</Typography.Text>
+            <Input
+              style={{ width: 200 }}
+              placeholder="например, Д-2025/01"
+              value={contract}
+              onChange={(e) => setContract(e.target.value)}
+            />
+            <Button loading={savingContract} onClick={handleSaveContract}>
+              Сохранить договор
+            </Button>
+          </Space>
+
           <Space wrap style={{ marginBottom: 12 }}>
             <Typography.Text strong>Цена по категории:</Typography.Text>
             <Select

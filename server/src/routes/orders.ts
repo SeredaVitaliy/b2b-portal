@@ -81,3 +81,23 @@ orderRouter.get("/orders/:id", (req, res) => {
   }
   res.json(order);
 });
+
+// POST /api/orders/:id/cancel — отменить свой заказ (только из статуса 'new').
+orderRouter.post("/orders/:id/cancel", (req, res) => {
+  try {
+    const order = orderRepo.cancel(req.user!.id, Number(req.params.id));
+    // Остаток вернулся на склад — пушим новые значения всем клиентам.
+    broadcastStockFor(order.items.map((i) => i.productId));
+    res.json(order);
+  } catch (e) {
+    if (e instanceof OrderError) {
+      const notFound = e.message.includes("не найден");
+      res.status(notFound ? 404 : 409).json({
+        error: notFound ? "not_found" : "conflict",
+        message: e.message,
+      });
+      return;
+    }
+    throw e;
+  }
+});

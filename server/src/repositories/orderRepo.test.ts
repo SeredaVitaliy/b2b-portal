@@ -134,4 +134,35 @@ describe("orderRepo", () => {
     expect(b.unitPrice).toBe(40); // у B своего нет → переопределение категории
     expect(order.total).toBe(80 * 5 + 40 * 1); // 440 — считает сервер
   });
+
+  it("cancel возвращает остаток, переводит в cancelled и запрещает повтор", () => {
+    const stockOf = () =>
+      (db.prepare("SELECT stock FROM products WHERE id = ?").get(productB) as {
+        stock: number;
+      }).stock;
+
+    const before = stockOf();
+    const order = orderRepo.create({
+      userId,
+      items: [{ productId: productB, quantity: 3 }],
+    });
+    expect(stockOf()).toBe(before - 3); // при оформлении остаток списался
+
+    const cancelled = orderRepo.cancel(userId, order.id);
+    expect(cancelled.status).toBe("cancelled");
+    expect(stockOf()).toBe(before); // остаток вернулся на склад
+
+    // повторная отмена (уже не 'new') — нельзя
+    expect(() => orderRepo.cancel(userId, order.id)).toThrow(OrderError);
+  });
+
+  it("cancel чужого заказа бросает OrderError (не найден)", () => {
+    const order = orderRepo.create({
+      userId,
+      items: [{ productId: productB, quantity: 1 }],
+    });
+    expect(() => orderRepo.cancel(userId + 999, order.id)).toThrow(OrderError);
+    // у владельца заказ по-прежнему можно отменить
+    expect(orderRepo.cancel(userId, order.id).status).toBe("cancelled");
+  });
 });

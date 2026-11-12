@@ -48,3 +48,13 @@ export async function getFrequentlyOrdered(): Promise<Product[]> {
     throw error;
   }
 }
+
+export async function cancelOrder(id: number): Promise<Order> {
+  try {
+    const response = await api.post<Order>(`/orders/${id}/cancel`);
+    return response.data;
+  } catch (error) {
+    console.error("Ошибка отмены заказа:", error);
+    throw error;
+  }
+}

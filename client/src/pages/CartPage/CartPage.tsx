@@ -21,9 +21,10 @@ import { useEffect, useState } from "react";
 import { createOrder } from "@/api/OrderApi";
 import { createTemplate } from "@/api/TemplateApi";
 import dayjs from "dayjs";
-import { Product } from "@b2b/shared";
+import { Product, resolveBuyerPrice } from "@b2b/shared";
 import { getStockSnapshot } from "@/api/StockApi";
 import { applyStockUpdate } from "@/slices/stockSlice";
+import { useMyOverrides } from "@/hooks/useBuyerPrice";
 
 type Availability =
   | { ok: true }
@@ -45,9 +46,21 @@ export default function CartPage() {
   const items = useAppSelector((state) => state.cart.items);
 
   const liveById = useAppSelector((state) => state.stock.byId);
+
+  // Персональные цены компании закупщика: цену позиции и итог считаем по договору
+  // (товар > категория > базовая) — тем же resolveBuyerPrice, что и сервер при
+  // оформлении, поэтому «Итого» совпадёт с суммой заказа.
+  const { data: overrides } = useMyOverrides();
+  const ovr = overrides ?? { products: {}, categories: {} };
+  const priceOf = (p: Product) =>
+    resolveBuyerPrice(
+      { id: p.id, categoryId: p.categoryId, basePrice: p.basePrice },
+      ovr,
+    );
+
   const totalUnits = items.reduce((sum, i) => sum + i.quantity, 0);
   const totalPrice = items.reduce(
-    (sum, i) => sum + i.product.basePrice * i.quantity,
+    (sum, i) => sum + priceOf(i.product) * i.quantity,
     0,
   );
   const navigate = useNavigate();
@@ -204,7 +217,7 @@ export default function CartPage() {
                   type="secondary"
                   style={{ display: "block", fontSize: 12 }}
                 >
-                  Арт. {product.sku} · {formatPrice(product.basePrice)} / {unit}
+                  Арт. {product.sku} · {formatPrice(priceOf(product))} / {unit}
                 </Typography.Text>
                 {!av.ok && (
                   <Tag color="red" style={{ marginTop: 4 }}>
@@ -225,7 +238,7 @@ export default function CartPage() {
                 strong
                 style={{ width: 120, textAlign: "right" }}
               >
-                {formatPrice(product.basePrice * quantity)}
+                {formatPrice(priceOf(product) * quantity)}
               </Typography.Text>
 
               <Button

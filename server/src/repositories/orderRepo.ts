@@ -1,5 +1,7 @@
 import type { Order, OrderItem, OrderStatus, Unit } from "@b2b/shared";
+import { resolveBuyerPrice } from "@b2b/shared";
 import { db } from "../db";
+import { priceRepo } from "./priceRepo";
 
 /** Ошибка валидации заказа (например, количество ниже минимальной партии). */
 export class OrderError extends Error {}
@@ -29,6 +31,7 @@ interface ProductForOrder {
   name: string;
   sku: string;
   unit: Unit;
+  category_id: number;
   base_price: number;
   min_batch: number;
   stock: number;
@@ -75,6 +78,18 @@ export const orderRepo = {
     const tx = db.transaction((data: CreateOrderInput): number => {
       const now = Math.floor(Date.now() / 1000);
 
+      // Компания закупщика → её персональные переопределения цен. Цену каждой
+      // позиции берём по договору (товар > категория > базовая), а не базовую:
+      // закупщик платит ровно ту цену, что видит в каталоге/корзине.
+      const companyRow = db
+        .prepare("SELECT company_id FROM users WHERE id = ?")
+        .get(data.userId) as { company_id: number | null } | undefined;
+      const companyId = companyRow?.company_id ?? null;
+      const overrides =
+        companyId != null
+          ? priceRepo.getOverrides(companyId)
+          : { products: {}, categories: {} };
+
       const orderId = db
         .prepare(
           `INSERT INTO orders (user_id, status, total, created_at, comment, desired_delivery_date)
@@ -88,7 +103,7 @@ export const orderRepo = {
         ).lastInsertRowid as number;
 
       const getProduct = db.prepare(
-        "SELECT name, sku, unit, base_price, min_batch, stock FROM products WHERE id = ?",
+        "SELECT name, sku, unit, category_id, base_price, min_batch, stock FROM products WHERE id = ?",
       );
       const insertItem = db.prepare(
         `INSERT INTO order_items
@@ -124,14 +139,24 @@ export const orderRepo = {
           );
         }
 
-        total += p.base_price * qty;
+        // Персональная цена по договору (снимок в заказ, как и остальное).
+        const unitPrice = resolveBuyerPrice(
+          {
+            id: line.productId,
+            categoryId: p.category_id,
+            basePrice: p.base_price,
+          },
+          overrides,
+        );
+
+        total += unitPrice * qty;
         insertItem.run({
           orderId,
           productId: line.productId,
           name: p.name,
           sku: p.sku,
           unit: p.unit,
-          unitPrice: p.base_price,
+          unitPrice,
           quantity: qty,
         });
         decStock.run(qty, line.productId);

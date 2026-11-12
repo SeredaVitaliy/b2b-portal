@@ -15,6 +15,7 @@ import QuantityStepper from "@/components/QuantityStepper/QuantityStepper";
 import { highlightMatch } from "@/lib/search";
 import { addFavorite, removeFavorite } from "@/slices/favoritesSlice";
 import { addFavoriteApi, removeFavoriteApi } from "@/api/FavoritesApi";
+import { useBuyerPrice } from "@/hooks/useBuyerPrice";
 
 interface Props {
   product: Product;
@@ -39,6 +40,8 @@ export default function ProductCard({
   const cartItem = useAppSelector((state) =>
     state.cart.items.find((i) => i.product.id === product.id),
   );
+  // Цена по договору (товар > категория > базовая) — мемо-селектор.
+  const buyerPrice = useBuyerPrice(product);
 
   const stopNav = (e: MouseEvent) => {
     e.preventDefault();
@@ -139,9 +142,23 @@ export default function ProductCard({
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Арт. {highlightMatch(product.sku, highlight ?? "")}
           </Typography.Text>
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            {formatPrice(product.basePrice)}
-          </Typography.Title>
+          <div>
+            <Typography.Title level={4} style={{ margin: 0 }}>
+              {formatPrice(buyerPrice.price)}
+            </Typography.Title>
+            {buyerPrice.isPersonal && (
+              <Space size={6} align="center">
+                <Typography.Text delete type="secondary" style={{ fontSize: 12 }}>
+                  {formatPrice(buyerPrice.base)}
+                </Typography.Text>
+                {buyerPrice.discountPct > 0 && (
+                  <Tag color="green" style={{ marginInlineEnd: 0 }}>
+                    −{buyerPrice.discountPct}%
+                  </Tag>
+                )}
+              </Space>
+            )}
+          </div>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             за {unit} · партия от {product.minBatch} {unit}
           </Typography.Text>

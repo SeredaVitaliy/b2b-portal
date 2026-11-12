@@ -35,3 +35,8 @@ export async function deletePriceOverride(
   });
   return response.data;
 }
+
+export async function getMyOverrides(): Promise<PriceOverrides> {
+  const response = await api.get<PriceOverrides>("/my-price-overrides");
+  return response.data;
+}

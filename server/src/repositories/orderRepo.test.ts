@@ -96,4 +96,42 @@ describe("orderRepo", () => {
     expect(orderRepo.getById(userId, order.id)).toBeDefined();
     expect(orderRepo.getById(userId + 999, order.id)).toBeUndefined();
   });
+
+  it("create применяет персональную цену по договору (товар > категория > база)", () => {
+    // Компания, её закупщик и переопределения: товар A = 80, категория = 40
+    // (категория действует на B, у которого своего переопределения нет).
+    const companyId = db
+      .prepare("INSERT INTO companies (name) VALUES (?)")
+      .run("ООО Договор").lastInsertRowid as number;
+    const buyer2 = db
+      .prepare(
+        "INSERT INTO users (email, password_hash, name, role, company_id) VALUES (?, ?, ?, ?, ?)",
+      )
+      .run("buyer2@test.dev", "x", "Закупщик", "buyer", companyId)
+      .lastInsertRowid as number;
+
+    const cat = db
+      .prepare("SELECT category_id AS c FROM products WHERE id = ?")
+      .get(productA) as { c: number };
+    db.prepare(
+      "INSERT INTO price_overrides (company_id, product_id, price) VALUES (?, ?, ?)",
+    ).run(companyId, productA, 80);
+    db.prepare(
+      "INSERT INTO price_overrides (company_id, category_id, price) VALUES (?, ?, ?)",
+    ).run(companyId, cat.c, 40);
+
+    const order = orderRepo.create({
+      userId: buyer2,
+      items: [
+        { productId: productA, quantity: 5 },
+        { productId: productB, quantity: 1 },
+      ],
+    });
+
+    const a = order.items.find((i) => i.productId === productA)!;
+    const b = order.items.find((i) => i.productId === productB)!;
+    expect(a.unitPrice).toBe(80); // переопределение товара важнее категории
+    expect(b.unitPrice).toBe(40); // у B своего нет → переопределение категории
+    expect(order.total).toBe(80 * 5 + 40 * 1); // 440 — считает сервер
+  });
 });

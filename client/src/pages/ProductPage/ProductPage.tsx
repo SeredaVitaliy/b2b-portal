@@ -1,6 +1,6 @@
 import { getProduct } from "@/api/ProductApi";
 import { ArrowLeftOutlined } from "@ant-design/icons";
-import { Product } from "@b2b/shared";
+import { Product, resolveBuyerPrice } from "@b2b/shared";
 import {
   Button,
   Card,
@@ -26,6 +26,7 @@ import {
 import { useAppDispatch } from "@/store/hooks";
 import { addItem } from "@/slices/cartSlice";
 import QuantityStepper from "@/components/QuantityStepper/QuantityStepper";
+import { useMyOverrides } from "@/hooks/useBuyerPrice";
 
 export default function ProductPage() {
   const { id } = useParams();
@@ -34,6 +35,8 @@ export default function ProductPage() {
   const [quantity, setQuantity] = useState(1);
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Переопределения компании закупщика (вызываем до ранних return — правило хуков).
+  const { data: overrides } = useMyOverrides();
 
   useEffect(() => {
     if (product) setQuantity(product.minBatch);
@@ -82,6 +85,15 @@ export default function ProductPage() {
   const stock = stockMeta[product.stockStatus];
   const unit = unitLabel[product.unit];
   const imageUrl = productImageUrl(product);
+
+  // Цена по договору: товар > категория > базовая.
+  const base = product.basePrice;
+  const buyerPrice = resolveBuyerPrice(
+    { id: product.id, categoryId: product.categoryId, basePrice: base },
+    overrides ?? { products: {}, categories: {} },
+  );
+  const discountPct =
+    buyerPrice < base ? Math.round((1 - buyerPrice / base) * 100) : 0;
 
   return (
     <div>
@@ -133,9 +145,28 @@ export default function ProductPage() {
             <Typography.Text type="secondary">
               Артикул: {product.sku}
             </Typography.Text>
-            <Typography.Title level={2} style={{ margin: 0, color: "#16a34a" }}>
-              {formatPrice(product.basePrice)}
-            </Typography.Title>
+            <Space align="baseline" size={10} wrap>
+              <Typography.Title
+                level={2}
+                style={{ margin: 0, color: "#16a34a" }}
+              >
+                {formatPrice(buyerPrice)}
+              </Typography.Title>
+              {buyerPrice !== base && (
+                <>
+                  <Typography.Text
+                    delete
+                    type="secondary"
+                    style={{ fontSize: 16 }}
+                  >
+                    {formatPrice(base)}
+                  </Typography.Text>
+                  {discountPct > 0 && (
+                    <Tag color="green">−{discountPct}%</Tag>
+                  )}
+                </>
+              )}
+            </Space>
             {product.stockStatus === "out" ? (
               <Typography.Text type="danger">Нет в наличии</Typography.Text>
             ) : (

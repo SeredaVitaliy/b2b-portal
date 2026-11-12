@@ -25,6 +25,8 @@ import { useEffect, useState } from "react";
 import { getFavorites } from "@/api/FavoritesApi";
 import { setFavorites } from "@/slices/favoritesSlice";
 import { useStockSocket } from "@/hooks/useStockSocket";
+import { useMyOverrides } from "@/hooks/useBuyerPrice";
+import { resolveBuyerPrice } from "@b2b/shared";
 
 const { Header, Content, Footer } = Layout;
 
@@ -35,8 +37,13 @@ export default function AppLayout() {
   const user = useAppSelector((state) => state.auth.user);
   const cartCount = useAppSelector((state) => state.cart.items.length);
   const cartItems = useAppSelector((state) => state.cart.items);
+  // Итог в превью корзины — по персональной цене (как на странице корзины).
+  const { data: overrides } = useMyOverrides();
+  const ovr = overrides ?? { products: {}, categories: {} };
+  const priceOf = (p: { id: number; categoryId: number; basePrice: number }) =>
+    resolveBuyerPrice(p, ovr);
   const cartTotal = cartItems.reduce(
-    (sum, i) => sum + i.product.basePrice * i.quantity,
+    (sum, i) => sum + priceOf(i.product) * i.quantity,
     0,
   );
   const [cartHover, setCartHover] = useState(false);
@@ -140,7 +147,7 @@ export default function AppLayout() {
                 {i.product.name}
               </Typography.Text>
               <Typography.Text type="secondary">
-                {i.quantity} × {formatPrice(i.product.basePrice)}
+                {i.quantity} × {formatPrice(priceOf(i.product))}
               </Typography.Text>
             </div>
           ))}

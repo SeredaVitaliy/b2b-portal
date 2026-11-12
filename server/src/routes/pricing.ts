@@ -1,13 +1,30 @@
-import { Router } from "express";
-import type { OverrideScope } from "@b2b/shared";
+import { Router, type Request, type Response } from "express";
+import type { OverrideScope, PriceOverrides } from "@b2b/shared";
 import { authenticate, authorize } from "../middleware/auth";
 import { priceRepo } from "../repositories/priceRepo";
+import { userRepo } from "../repositories/userRepo";
 
 export const pricingRouter = Router();
 
 // Персональные цены ведут менеджеры/админы. Гвард — пол-роутно (роутеры висят
 // на общем "/api", router-level authorize ложно блокировал бы соседей).
 const editorOnly = [authenticate, authorize("manager", "admin")];
+
+// GET /api/my-price-overrides — переопределения компании ТЕКУЩЕГО закупщика.
+// Доступно любому вошедшему: клиент считает по ним свою цену в каталоге/корзине.
+// Нет компании (например, у админа каталога) — пустые переопределения.
+pricingRouter.get(
+  "/my-price-overrides",
+  authenticate,
+  (req: Request, res: Response) => {
+  const user = userRepo.findById(req.user!.id);
+  const companyId = user?.companyId ?? null;
+  const result: PriceOverrides =
+    companyId != null
+      ? priceRepo.getOverrides(companyId)
+      : { companyId: 0, products: {}, categories: {} };
+  res.json(result);
+});
 
 function parseScope(value: unknown): OverrideScope | null {
   return value === "product" || value === "category" ? value : null;

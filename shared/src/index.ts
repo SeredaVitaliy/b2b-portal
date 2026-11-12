@@ -284,6 +284,23 @@ export interface DeletePriceOverrideRequest {
   refId: number;
 }
 
+/**
+ * Итоговая цена товара для конкретного клиента: приоритет
+ * переопределение товара > переопределение категории > базовая цена.
+ * Чистая функция — один источник правды о приоритете и для сервера (цена
+ * заказа), и для клиента (показ в каталоге/корзине через мемо-селектор).
+ */
+export function resolveBuyerPrice(
+  product: { id: number; categoryId: number; basePrice: number },
+  overrides: { products: Record<number, number>; categories: Record<number, number> },
+): number {
+  const own = overrides.products[product.id];
+  if (own !== undefined) return own;
+  const cat = overrides.categories[product.categoryId];
+  if (cat !== undefined) return cat;
+  return product.basePrice;
+}
+
 // ---------- История изменений цены и остатка ----------
 
 /** Что именно поменяли у товара: базовую цену или остаток. */

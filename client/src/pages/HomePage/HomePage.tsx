@@ -29,7 +29,7 @@ export default function HomePage() {
         Здравствуйте, {user?.name}!
       </Typography.Title>
       <Typography.Paragraph type="secondary" style={{ fontSize: 16 }}>
-        Добро пожаловать в B2B Портал — оптовые поставки продуктов.
+        Добро пожаловать в SV маркет — оптовые поставки продуктов.
       </Typography.Paragraph>
       {frequent.length > 0 && (
         <Card style={{ marginBottom: 16 }}>

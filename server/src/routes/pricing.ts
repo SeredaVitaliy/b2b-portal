@@ -1,5 +1,9 @@
 import { Router, type Request, type Response } from "express";
-import type { OverrideScope, PriceOverrides } from "@b2b/shared";
+import type {
+  OverrideScope,
+  PriceOverrides,
+  SetContractRequest,
+} from "@b2b/shared";
 import { authenticate, authorize } from "../middleware/auth";
 import { priceRepo } from "../repositories/priceRepo";
 import { userRepo } from "../repositories/userRepo";
@@ -34,6 +38,25 @@ function parseScope(value: unknown): OverrideScope | null {
 pricingRouter.get("/clients", editorOnly, (_req, res) => {
   res.json(priceRepo.listCompanies());
 });
+
+// PATCH /api/clients/:id/contract — номер договора клиента (админ/менеджер).
+pricingRouter.patch(
+  "/clients/:id/contract",
+  editorOnly,
+  (req: Request, res: Response) => {
+    const companyId = Number(req.params.id);
+    if (!Number.isInteger(companyId) || !priceRepo.companyExists(companyId)) {
+      res.status(404).json({ error: "not_found", message: "Клиент не найден" });
+      return;
+    }
+    const body = req.body as SetContractRequest;
+    const contractNumber =
+      typeof body.contractNumber === "string" && body.contractNumber.trim()
+        ? body.contractNumber.trim()
+        : null;
+    res.json(priceRepo.setContract(companyId, contractNumber));
+  },
+);
 
 // GET /api/price-overrides/:companyId — переопределения клиента.
 pricingRouter.get("/price-overrides/:companyId", editorOnly, (req, res) => {

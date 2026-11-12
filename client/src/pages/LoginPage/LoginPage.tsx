@@ -26,7 +26,7 @@ export default function LoginPage() {
             <ShopOutlined />
           </div>
           <Typography.Title level={3} style={{ margin: "10px 0 2px" }}>
-            B2B Портал
+            SV маркет
           </Typography.Title>
           <Typography.Text type="secondary">Вход в личный кабинет</Typography.Text>
         </div>

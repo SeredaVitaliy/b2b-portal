@@ -11,6 +11,18 @@ export async function getClients(): Promise<Company[]> {
   return response.data;
 }
 
+// Задать/очистить номер договора клиента (админ/менеджер).
+export async function setClientContract(
+  companyId: number,
+  contractNumber: string | null,
+): Promise<Company> {
+  const response = await api.patch<Company>(
+    `/clients/${companyId}/contract`,
+    { contractNumber },
+  );
+  return response.data;
+}
+
 export async function getPriceOverrides(
   companyId: number,
 ): Promise<PriceOverrides> {

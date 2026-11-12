@@ -15,6 +15,35 @@ export interface User {
   role: Role;
   /** Компания-клиент, к которой привязан закупщик (null у администратора каталога). */
   companyId: number | null;
+  /** Контактный телефон (nullable). */
+  phone: string | null;
+}
+
+/** Полный профиль текущего пользователя (с данными компании и договором). */
+export interface Profile {
+  id: number;
+  email: string;
+  name: string;
+  role: Role;
+  phone: string | null;
+  company: { id: number; name: string; contractNumber: string | null } | null;
+}
+
+/** Тело PATCH /api/me — пользователь правит свои имя/телефон. */
+export interface UpdateProfileRequest {
+  name?: string;
+  phone?: string | null;
+}
+
+/** Тело POST /api/me/password — смена пароля (нужен текущий). */
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+/** Тело PATCH /api/clients/:id/contract — номер договора клиента (админ/менеджер). */
+export interface SetContractRequest {
+  contractNumber: string | null;
 }
 
 // ---------- Авторизация ----------
@@ -253,6 +282,7 @@ export interface ImportProductsResponse {
 export interface Company {
   id: number;
   name: string;
+  contractNumber: string | null;
 }
 
 /** Уровень переопределения цены. */

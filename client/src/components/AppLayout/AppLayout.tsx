@@ -4,14 +4,17 @@ import {
   Badge,
   Button,
   Divider,
+  Dropdown,
   Layout,
   Menu,
   Popover,
   Space,
   Typography,
 } from "antd";
+import type { MenuProps } from "antd";
 import { formatPrice } from "@/lib/product";
 import {
+  DownOutlined,
   LogoutOutlined,
   ShopOutlined,
   UserOutlined,
@@ -69,6 +72,11 @@ export default function AppLayout() {
     }
   };
 
+  const isEditor = user?.role === "admin" || user?.role === "manager";
+  const isAdmin = user?.role === "admin";
+
+  // Верхняя полоса — только витрина и личный кабинет. Всё админское вынесено
+  // в выпадающее меню профиля, чтобы шапка не превращалась в длинную ленту.
   const menuItems = [
     { key: "/", label: <Link to="/">Главная</Link> },
     { key: "/catalog", label: <Link to="/catalog">Каталог</Link> },
@@ -76,56 +84,49 @@ export default function AppLayout() {
     { key: "/orders", label: <Link to="/orders">Мои заказы</Link> },
     { key: "/favorites", label: <Link to="/favorites">Избранное</Link> },
     { key: "/templates", label: <Link to="/templates">Шаблоны</Link> },
-    ...(user?.role === "admin"
-      ? [{ key: "/users", label: <Link to="/users">Пользователи</Link> }]
-      : []),
-    ...(user?.role === "admin" || user?.role === "manager"
-      ? [
-          {
-            key: "/mass-edit",
-            label: <Link to="/mass-edit">Редактор цен</Link>,
-          },
-        ]
-      : []),
-    ...(user?.role === "admin" || user?.role === "manager"
-      ? [{ key: "/import", label: <Link to="/import">Импорт CSV</Link> }]
-      : []),
-    ...(user?.role === "admin" || user?.role === "manager"
-      ? [{ key: "/pricing", label: <Link to="/pricing">Прайсы клиентов</Link> }]
-      : []),
-    ...(user?.role === "admin" || user?.role === "manager"
-      ? [
-          {
-            key: "/change-history",
-            label: <Link to="/change-history">История изменений</Link>,
-          },
-        ]
-      : []),
-    ...(user?.role === "admin" || user?.role === "manager"
-      ? [{ key: "/categories", label: <Link to="/categories">Категории</Link> }]
-      : []),
   ];
 
-  // Какой пункт меню подсветить: по началу пути (чтобы /catalog/5 и /orders/3 тоже подсвечивались).
-  const activeKey = location.pathname.startsWith("/categories")
-    ? "/categories"
-    : location.pathname.startsWith("/change-history")
-    ? "/change-history"
-    : location.pathname.startsWith("/mass-edit")
-    ? "/mass-edit"
-    : location.pathname.startsWith("/all-products")
-      ? "/all-products"
-      : location.pathname.startsWith("/catalog")
-        ? "/catalog"
-        : location.pathname.startsWith("/orders")
-          ? "/orders"
-          : location.pathname.startsWith("/favorites")
-            ? "/favorites"
-            : location.pathname.startsWith("/templates")
-              ? "/templates"
-              : location.pathname.startsWith("/users")
-                ? "/users"
-                : "/";
+  // Меню профиля (по ролям): управление прайсами/категориями/пользователями
+  // живёт здесь. Прайс-листы — отдельное подменю, чтобы сгруппировать всё по ценам.
+  const profileMenuItems: MenuProps["items"] = [
+    { key: "/profile", label: "Профиль", icon: <UserOutlined /> },
+    ...(isEditor
+      ? [
+          {
+            key: "pricelists",
+            label: "Прайс-листы",
+            children: [
+              { key: "/mass-edit", label: "Редактор цен" },
+              { key: "/import", label: "Импорт CSV" },
+              { key: "/pricing", label: "Прайсы клиентов" },
+              { key: "/change-history", label: "История изменений" },
+            ],
+          },
+          { key: "/categories", label: "Редактор категорий" },
+        ]
+      : []),
+    ...(isAdmin ? [{ key: "/users", label: "Пользователи" }] : []),
+    { type: "divider" as const },
+    { key: "logout", label: "Выйти", icon: <LogoutOutlined />, danger: true },
+  ];
+
+  const onProfileMenuClick: MenuProps["onClick"] = ({ key }) => {
+    if (key === "logout") handleLogout();
+    else navigate(key);
+  };
+
+  // Подсветка пункта верхней полосы (пункты из выпадашки её не подсвечивают).
+  const activeKey = location.pathname.startsWith("/all-products")
+    ? "/all-products"
+    : location.pathname.startsWith("/catalog")
+      ? "/catalog"
+      : location.pathname.startsWith("/orders")
+        ? "/orders"
+        : location.pathname.startsWith("/favorites")
+          ? "/favorites"
+          : location.pathname.startsWith("/templates")
+            ? "/templates"
+            : "/";
 
   const cartPreview = (
     <div style={{ width: 280 }}>
@@ -198,7 +199,7 @@ export default function AppLayout() {
           }}
         >
           <ShopOutlined style={{ fontSize: 22 }} />
-          B2B Портал
+          SV маркет
         </Link>
 
         <Menu
@@ -238,20 +239,32 @@ export default function AppLayout() {
               </Badge>
             </Link>
           </Popover>
-          <Space size={8}>
-            <Avatar size="small" icon={<UserOutlined />} />
-            <Typography.Text style={{ color: "#fff" }}>
-              {user?.name}
-            </Typography.Text>
-          </Space>
-          <Button
-            type="text"
-            icon={<LogoutOutlined />}
-            onClick={handleLogout}
-            style={{ color: "rgba(255,255,255,0.85)" }}
+          <Dropdown
+            menu={{ items: profileMenuItems, onClick: onProfileMenuClick }}
+            trigger={["hover"]}
+            placement="bottomRight"
           >
-            Выйти
-          </Button>
+            <Space
+              size={8}
+              style={{
+                cursor: "pointer",
+                color: "#fff",
+                height: 40,
+                padding: "0 10px",
+                borderRadius: 8,
+                display: "inline-flex",
+                alignItems: "center",
+              }}
+            >
+              <Avatar size="small" icon={<UserOutlined />} />
+              <Typography.Text style={{ color: "#fff" }}>
+                {user?.name}
+              </Typography.Text>
+              <DownOutlined
+                style={{ fontSize: 10, color: "rgba(255,255,255,0.65)" }}
+              />
+            </Space>
+          </Dropdown>
         </Space>
       </Header>
 
@@ -262,7 +275,7 @@ export default function AppLayout() {
       </Content>
 
       <Footer style={{ textAlign: "center", color: "#8c8c8c" }}>
-        B2B Портал · учебный проект · {new Date().getFullYear()}
+        SV group · {new Date().getFullYear()}
       </Footer>
     </Layout>
   );

@@ -94,10 +94,15 @@ export default function AppLayout() {
           },
         ]
       : []),
+    ...(user?.role === "admin" || user?.role === "manager"
+      ? [{ key: "/categories", label: <Link to="/categories">Категории</Link> }]
+      : []),
   ];
 
   // Какой пункт меню подсветить: по началу пути (чтобы /catalog/5 и /orders/3 тоже подсвечивались).
-  const activeKey = location.pathname.startsWith("/change-history")
+  const activeKey = location.pathname.startsWith("/categories")
+    ? "/categories"
+    : location.pathname.startsWith("/change-history")
     ? "/change-history"
     : location.pathname.startsWith("/mass-edit")
     ? "/mass-edit"

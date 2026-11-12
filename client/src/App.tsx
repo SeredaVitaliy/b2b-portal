@@ -20,6 +20,7 @@ import MassEditPage from "./pages/MassEditPage/MassEditPage";
 import MassImportPage from "./pages/MassImportPage/MassImportPage";
 import PricingPage from "./pages/PricingPage/PricingPage";
 import ChangeHistoryPage from "./pages/ChangeHistoryPage/ChangeHistoryPage";
+import CategoriesPage from "./pages/CategoriesPage/CategoriesPage";
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   {
@@ -45,6 +46,7 @@ const router = createBrowserRouter([
           { path: "/import", element: <MassImportPage /> },
           { path: "/pricing", element: <PricingPage /> },
           { path: "/change-history", element: <ChangeHistoryPage /> },
+          { path: "/categories", element: <CategoriesPage /> },
         ],
       },
     ],

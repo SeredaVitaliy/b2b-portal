@@ -53,6 +53,23 @@ export interface Category {
   slug: string;
 }
 
+/** Тело POST /api/categories — создать категорию. parentId null = корневая. */
+export interface CreateCategoryRequest {
+  name: string;
+  parentId: number | null;
+}
+
+/**
+ * Тело PATCH /api/categories/:id — переименовать и/или переместить.
+ * Любое поле можно опустить. parentId: число — новый родитель, null — сделать
+ * корневой. Сервер не даёт создать цикл (переместить категорию внутрь её же
+ * поддерева) и не трогает порядок (братья сортируются по имени).
+ */
+export interface UpdateCategoryRequest {
+  name?: string;
+  parentId?: number | null;
+}
+
 export interface Product {
   id: number;
   sku: string;

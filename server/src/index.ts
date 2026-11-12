@@ -12,6 +12,7 @@ import { userRouter } from "./routes/users";
 import { stockRouter } from "./routes/stock";
 import { pricingRouter } from "./routes/pricing";
 import { historyRouter } from "./routes/history";
+import { categoryRouter } from "./routes/categories";
 import { attachStockWebSocket } from "./ws/stock";
 
 initSchema();
@@ -33,6 +34,7 @@ app.use("/api", userRouter);
 app.use("/api", stockRouter);
 app.use("/api", pricingRouter);
 app.use("/api", historyRouter);
+app.use("/api", categoryRouter);
 
 // WebSocket живёт на том же порту, что и HTTP, поэтому оборачиваем Express
 // в http-сервер и слушаем уже его (а не app.listen напрямую).

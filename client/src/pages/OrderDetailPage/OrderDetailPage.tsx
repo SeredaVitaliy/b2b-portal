@@ -1,9 +1,18 @@
-import { getOrder } from "@/api/OrderApi";
+import { cancelOrder, getOrder } from "@/api/OrderApi";
 import { formatDateTime, orderStatusMeta } from "@/lib/order";
 import { formatPrice, unitLabel } from "@/lib/product";
 import { Order } from "@b2b/shared";
 import { ArrowLeftOutlined } from "@ant-design/icons";
-import { Button, Card, Empty, Spin, Tag, Typography } from "antd";
+import {
+  Button,
+  Card,
+  Empty,
+  message,
+  Popconfirm,
+  Spin,
+  Tag,
+  Typography,
+} from "antd";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useRepeatOrder } from "@/hooks/useRepeatOrder";
@@ -14,6 +23,23 @@ export default function OrderDetailPage() {
   const repeatOrder = useRepeatOrder();
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
+
+  const handleCancel = async () => {
+    if (!order) return;
+    setCancelling(true);
+    try {
+      const updated = await cancelOrder(order.id);
+      setOrder(updated); // статус станет «Отменён», кнопка исчезнет
+      message.success("Заказ отменён, остаток вернулся на склад");
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } }).response
+        ?.data?.message;
+      message.error(msg ?? "Не удалось отменить заказ");
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -82,6 +108,19 @@ export default function OrderDetailPage() {
             quantity: i.quantity,
           }))}
         />
+        {order.status === "new" && (
+          <Popconfirm
+            title="Отменить заказ?"
+            description="Остаток вернётся на склад."
+            okText="Да, отменить"
+            cancelText="Нет"
+            onConfirm={handleCancel}
+          >
+            <Button danger loading={cancelling}>
+              Отменить заказ
+            </Button>
+          </Popconfirm>
+        )}
       </div>
       <Typography.Text type="secondary">
         {formatDateTime(order.createdAt)}

@@ -189,6 +189,36 @@ export const orderRepo = {
     return row ? mapOrder(row, this.itemsOf(row.id)) : undefined;
   },
 
+  /**
+   * Отмена заказа закупщиком — только своего и только из статуса 'new'
+   * (до этапа обработки). Возврат остатков на склад (товар снова доступен) и
+   * перевод в 'cancelled' — в одной транзакции.
+   */
+  cancel(userId: number, orderId: number): Order {
+    const tx = db.transaction(() => {
+      const row = db
+        .prepare("SELECT status FROM orders WHERE id = ? AND user_id = ?")
+        .get(orderId, userId) as { status: OrderStatus } | undefined;
+      if (!row) throw new OrderError("Заказ не найден");
+      if (row.status !== "new") {
+        throw new OrderError("Заказ уже в обработке — отменить нельзя");
+      }
+
+      // Возврат остатков: что списали при оформлении — возвращаем на склад.
+      const restore = db.prepare(
+        "UPDATE products SET stock = stock + ? WHERE id = ?",
+      );
+      for (const it of this.itemsOf(orderId)) {
+        restore.run(it.quantity, it.productId);
+      }
+      db.prepare("UPDATE orders SET status = 'cancelled' WHERE id = ?").run(
+        orderId,
+      );
+    });
+    tx();
+    return this.getById(userId, orderId)!;
+  },
+
   itemsOf(orderId: number): OrderItem[] {
     const rows = db
       .prepare("SELECT * FROM order_items WHERE order_id = ? ORDER BY id")

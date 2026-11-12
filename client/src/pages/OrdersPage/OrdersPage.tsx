@@ -1,4 +1,4 @@
-import { getOrders } from "@/api/OrderApi";
+import { cancelOrder, getOrders } from "@/api/OrderApi";
 import { useRepeatOrder } from "@/hooks/useRepeatOrder";
 import SaveAsTemplateButton from "@/components/SaveAsTemplateButton/SaveAsTemplateButton";
 import { formatDateTime, orderStatusMeta } from "@/lib/order";
@@ -9,6 +9,8 @@ import {
   Card,
   DatePicker,
   Empty,
+  message,
+  Popconfirm,
   Select,
   Space,
   Spin,
@@ -23,6 +25,19 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const repeatOrder = useRepeatOrder();
+
+  const handleCancel = async (order: Order) => {
+    try {
+      const updated = await cancelOrder(order.id);
+      setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+      message.success("Заказ отменён");
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } }).response
+        ?.data?.message;
+      message.error(msg ?? "Не удалось отменить заказ");
+    }
+  };
+
   const [searchParams, setSearchParams] = useSearchParams();
   const activeStatus = searchParams.get("status") ?? "all";
   const from = searchParams.get("from");
@@ -149,6 +164,25 @@ export default function OrdersPage() {
                         quantity: i.quantity,
                       }))}
                     />
+                    {order.status === "new" && (
+                      <Popconfirm
+                        title="Отменить заказ?"
+                        okText="Да"
+                        cancelText="Нет"
+                        onConfirm={() => handleCancel(order)}
+                      >
+                        <Button
+                          size="small"
+                          danger
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                        >
+                          Отменить
+                        </Button>
+                      </Popconfirm>
+                    )}
                   </div>
                 </Card>
               </Link>

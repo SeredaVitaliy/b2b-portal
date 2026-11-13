@@ -15,7 +15,6 @@ import OrderDetailPage from "./pages/OrderDetailPage/OrderDetailPage";
 import FavoritesPage from "./pages/FavoritesPage/FavoritesPage";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
 import UsersPage from "./pages/UsersPage/UsersPage";
-import AllProductsPage from "./pages/AllProductsPage/AllProductsPage";
 import MassEditPage from "./pages/MassEditPage/MassEditPage";
 import MassImportPage from "./pages/MassImportPage/MassImportPage";
 import PricingPage from "./pages/PricingPage/PricingPage";
@@ -32,7 +31,6 @@ const router = createBrowserRouter([
         children: [
           { path: "/", element: <HomePage /> },
           { path: "/catalog", element: <CatalogPage /> },
-          { path: "/all-products", element: <AllProductsPage /> },
           {
             path: "/catalog/:id",
             element: <ProductPage />,

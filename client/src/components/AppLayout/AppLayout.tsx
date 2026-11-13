@@ -1,12 +1,12 @@
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import {
   Avatar,
   Badge,
   Button,
   Divider,
   Dropdown,
+  Input,
   Layout,
-  Menu,
   Popover,
   Space,
   Typography,
@@ -14,6 +14,7 @@ import {
 import type { MenuProps } from "antd";
 import { formatPrice } from "@/lib/product";
 import {
+  AppstoreOutlined,
   DownOutlined,
   LogoutOutlined,
   ShopOutlined,
@@ -36,7 +37,6 @@ const { Header, Content, Footer } = Layout;
 export default function AppLayout() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const location = useLocation();
   const user = useAppSelector((state) => state.auth.user);
   const cartCount = useAppSelector((state) => state.cart.items.length);
   const cartItems = useAppSelector((state) => state.cart.items);
@@ -50,6 +50,7 @@ export default function AppLayout() {
     0,
   );
   const [cartHover, setCartHover] = useState(false);
+  const [search, setSearch] = useState("");
   useStockSocket();
 
   useEffect(() => {
@@ -75,23 +76,16 @@ export default function AppLayout() {
   const isEditor = user?.role === "admin" || user?.role === "manager";
   const isAdmin = user?.role === "admin";
 
-  // Верхняя полоса — только витрина и личный кабинет. Всё админское вынесено
-  // в выпадающее меню профиля, чтобы шапка не превращалась в длинную ленту.
-  const menuItems = [
-    { key: "/", label: <Link to="/">Главная</Link> },
-    { key: "/catalog", label: <Link to="/catalog">Каталог</Link> },
-    { key: "/all-products", label: <Link to="/all-products">Все товары</Link> },
-    { key: "/orders", label: <Link to="/orders">Мои заказы</Link> },
-    { key: "/favorites", label: <Link to="/favorites">Избранное</Link> },
-    { key: "/templates", label: <Link to="/templates">Шаблоны</Link> },
-  ];
-
-  // Меню профиля (по ролям): управление прайсами/категориями/пользователями
-  // живёт здесь. Прайс-листы — отдельное подменю, чтобы сгруппировать всё по ценам.
+  // Меню профиля: личные разделы закупщика + (по ролям) управление. Так верхняя
+  // полоса остаётся чистой — только логотип, «Каталог», поиск, корзина, профиль.
   const profileMenuItems: MenuProps["items"] = [
     { key: "/profile", label: "Профиль", icon: <UserOutlined /> },
+    { key: "/orders", label: "Мои заказы" },
+    { key: "/favorites", label: "Избранное" },
+    { key: "/templates", label: "Шаблоны" },
     ...(isEditor
       ? [
+          { type: "divider" as const },
           {
             key: "pricelists",
             label: "Прайс-листы",
@@ -115,18 +109,11 @@ export default function AppLayout() {
     else navigate(key);
   };
 
-  // Подсветка пункта верхней полосы (пункты из выпадашки её не подсвечивают).
-  const activeKey = location.pathname.startsWith("/all-products")
-    ? "/all-products"
-    : location.pathname.startsWith("/catalog")
-      ? "/catalog"
-      : location.pathname.startsWith("/orders")
-        ? "/orders"
-        : location.pathname.startsWith("/favorites")
-          ? "/favorites"
-          : location.pathname.startsWith("/templates")
-            ? "/templates"
-            : "/";
+  // Поиск из шапки ведёт на каталог с ?search — состояние каталога живёт в URL.
+  const submitSearch = (value: string) => {
+    const q = value.trim();
+    navigate(q ? `/catalog?search=${encodeURIComponent(q)}` : "/catalog");
+  };
 
   const cartPreview = (
     <div style={{ width: 280 }}>
@@ -179,7 +166,7 @@ export default function AppLayout() {
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 24,
+          gap: 16,
           paddingInline: 24,
           position: "sticky",
           top: 0,
@@ -202,15 +189,25 @@ export default function AppLayout() {
           SV маркет
         </Link>
 
-        <Menu
-          theme="dark"
-          mode="horizontal"
-          selectedKeys={[activeKey]}
-          items={menuItems}
-          style={{ flex: 1, minWidth: 0, background: "transparent" }}
+        <Button
+          type="primary"
+          icon={<AppstoreOutlined />}
+          onClick={() => navigate("/catalog")}
+        >
+          Каталог
+        </Button>
+
+        <Input.Search
+          placeholder="Поиск товаров по названию или артикулу"
+          allowClear
+          enterButton
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onSearch={submitSearch}
+          style={{ flex: 1, maxWidth: 560 }}
         />
 
-        <Space size={12} align="center">
+        <Space size={12} align="center" style={{ marginLeft: "auto" }}>
           <Popover
             trigger="hover"
             placement="bottomRight"
@@ -223,9 +220,9 @@ export default function AppLayout() {
               style={{
                 display: "inline-flex",
                 alignItems: "center",
+                gap: 8,
                 height: 40,
                 padding: "0 14px",
-                marginRight: 8,
                 borderRadius: 8,
                 color: "#fff",
                 background: cartHover
@@ -237,8 +234,14 @@ export default function AppLayout() {
               <Badge count={cartCount} size="small">
                 <ShoppingCartOutlined style={{ fontSize: 20, color: "#fff" }} />
               </Badge>
+              {cartItems.length > 0 && (
+                <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+                  {formatPrice(cartTotal)}
+                </span>
+              )}
             </Link>
           </Popover>
+
           <Dropdown
             menu={{ items: profileMenuItems, onClick: onProfileMenuClick }}
             trigger={["hover"]}
@@ -257,7 +260,10 @@ export default function AppLayout() {
               }}
             >
               <Avatar size="small" icon={<UserOutlined />} />
-              <Typography.Text style={{ color: "#fff" }}>
+              <Typography.Text
+                style={{ color: "#fff", maxWidth: 140 }}
+                ellipsis
+              >
                 {user?.name}
               </Typography.Text>
               <DownOutlined
@@ -269,7 +275,7 @@ export default function AppLayout() {
       </Header>
 
       <Content style={{ padding: 24 }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
           <Outlet />
         </div>
       </Content>

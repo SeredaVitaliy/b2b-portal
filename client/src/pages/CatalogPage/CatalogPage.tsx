@@ -15,7 +15,6 @@ import {
   Spin,
   Typography,
 } from "antd";
-import { FixedSizeGrid, type GridChildComponentProps } from "react-window";
 import {
   getCategories,
   getProducts,
@@ -23,7 +22,6 @@ import {
   type ProductSort,
 } from "@/api/ProductApi";
 import ProductCard from "@/components/ProductCard/ProductCard";
-import { useElementSize } from "@/hooks/useElementSize";
 
 const sortOptions = [
   { value: "popularity", label: "По популярности" },
@@ -51,36 +49,6 @@ function readParams(sp: URLSearchParams): ProductParams {
   };
 }
 
-// --- Виртуализированный режим «все товары списком» ---
-const MIN_COLUMN_WIDTH = 220;
-const ROW_HEIGHT = 360;
-
-interface CellData {
-  products: Product[];
-  columnCount: number;
-  categoryNameById: Map<number, string>;
-}
-
-function Cell({
-  columnIndex,
-  rowIndex,
-  style,
-  data,
-}: GridChildComponentProps<CellData>) {
-  const { products, columnCount, categoryNameById } = data;
-  const index = rowIndex * columnCount + columnIndex;
-  if (index >= products.length) return null;
-  const product = products[index];
-  return (
-    <div style={{ ...style, padding: 8 }}>
-      <ProductCard
-        product={product}
-        categoryName={categoryNameById.get(product.categoryId)}
-      />
-    </div>
-  );
-}
-
 export default function CatalogPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -91,11 +59,11 @@ export default function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const params = useMemo(() => readParams(searchParams), [searchParams]);
 
-  // Режим «все товары списком» (виртуализированная сетка вместо пагинации).
+  // Режим «показать все товары списком»: без пагинации, весь отфильтрованный
+  // каталог одной сеткой со штатной прокруткой страницы.
   const [showAll, setShowAll] = useState(false);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [allLoading, setAllLoading] = useState(false);
-  const { ref, width, height } = useElementSize<HTMLDivElement>();
 
   const categoryNameById = useMemo(
     () => new Map(categories.map((c) => [c.id, c.name])),
@@ -166,9 +134,6 @@ export default function CatalogPage() {
   };
 
   const activeCat = params.categoryId;
-  const columnCount = Math.max(1, Math.floor(width / MIN_COLUMN_WIDTH));
-  const columnWidth = width > 0 ? Math.floor(width / columnCount) : 0;
-  const rowCount = Math.ceil(allProducts.length / columnCount);
 
   return (
     <div>
@@ -272,31 +237,24 @@ export default function CatalogPage() {
 
           {showAll ? (
             <Spin spinning={allLoading}>
-              <div ref={ref} style={{ height: "calc(100vh - 280px)" }}>
-                {width > 0 && allProducts.length > 0 && (
-                  <FixedSizeGrid
-                    columnCount={columnCount}
-                    columnWidth={columnWidth}
-                    rowCount={rowCount}
-                    rowHeight={ROW_HEIGHT}
-                    width={width}
-                    height={height}
-                    itemData={{
-                      products: allProducts,
-                      columnCount,
-                      categoryNameById,
-                    }}
-                  >
-                    {Cell}
-                  </FixedSizeGrid>
-                )}
-                {!allLoading && allProducts.length === 0 && (
-                  <Empty
-                    description="Ничего не найдено"
-                    style={{ margin: "48px 0" }}
-                  />
-                )}
-              </div>
+              {!allLoading && allProducts.length === 0 ? (
+                <Empty
+                  description="Ничего не найдено"
+                  style={{ margin: "48px 0" }}
+                />
+              ) : (
+                <Row gutter={[16, 16]} style={{ minHeight: 200 }}>
+                  {allProducts.map((product) => (
+                    <Col key={product.id} xs={12} sm={8} lg={8} xl={6}>
+                      <ProductCard
+                        product={product}
+                        categoryName={categoryNameById.get(product.categoryId)}
+                        highlight={params.search}
+                      />
+                    </Col>
+                  ))}
+                </Row>
+              )}
             </Spin>
           ) : (
             <>
@@ -339,7 +297,7 @@ export default function CatalogPage() {
             </>
           )}
 
-          {/* Под пагинацией — переключатель на полный список (виртуализация). */}
+          {/* Под пагинацией — переключатель на полный список без страниц. */}
           <div
             style={{
               display: "flex",

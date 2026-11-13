@@ -18,7 +18,16 @@ createRoot(document.getElementById("root")!).render(
           theme={{
             token: {
               colorPrimary: "#16a34a",
+              colorLink: "#16a34a",
+              colorLinkHover: "#15803d",
               borderRadius: 8,
+              controlHeight: 38,
+              fontSize: 15,
+            },
+            components: {
+              Layout: { headerBg: "#12261d", headerHeight: 64 },
+              Card: { borderRadiusLG: 12 },
+              Button: { fontWeight: 500 },
             },
           }}
         >

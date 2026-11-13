@@ -164,15 +164,23 @@ export default function AppLayout() {
     <Layout style={{ minHeight: "100vh" }}>
       <Header
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          paddingInline: 24,
+          padding: 0,
           position: "sticky",
           top: 0,
           zIndex: 10,
         }}
       >
+        <div
+          style={{
+            maxWidth: 1280,
+            height: "100%",
+            margin: "0 auto",
+            paddingInline: 24,
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+          }}
+        >
         <Link
           to="/"
           style={{
@@ -247,31 +255,37 @@ export default function AppLayout() {
             trigger={["hover"]}
             placement="bottomRight"
           >
-            <Space
-              size={8}
+            <div
               style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
                 cursor: "pointer",
                 color: "#fff",
                 height: 40,
                 padding: "0 10px",
                 borderRadius: 8,
-                display: "inline-flex",
-                alignItems: "center",
+                whiteSpace: "nowrap",
               }}
             >
               <Avatar size="small" icon={<UserOutlined />} />
-              <Typography.Text
-                style={{ color: "#fff", maxWidth: 140 }}
-                ellipsis
+              <span
+                style={{
+                  maxWidth: 140,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
               >
                 {user?.name}
-              </Typography.Text>
+              </span>
               <DownOutlined
                 style={{ fontSize: 10, color: "rgba(255,255,255,0.65)" }}
               />
-            </Space>
+            </div>
           </Dropdown>
         </Space>
+        </div>
       </Header>
 
       <Content style={{ padding: 24 }}>

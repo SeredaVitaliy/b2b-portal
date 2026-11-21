@@ -1,10 +1,11 @@
-export interface Company {id:number; name:string; kind:string; minimum:number; lead_days:number; active:boolean; description:string; delivery_days:number[]}
+export interface Company {id:number; name:string; kind:string; minimum:number; lead_days:number; active:boolean; description:string; delivery_days:number[]; state:string; registration:string|null}
 export interface Product {id:number; name:string; category:number; unit:string; approved:boolean; rejection?:string|null}
 export interface Offer {id:number; supplier:number; product:number; price:number|null; stock:number; pack:number}
 export interface Item {offer:number; name:string; price:number; quantity:number}
-export interface Order {id:number; buyer:number; supplier:number; status:string; delivery:string; address:string; note:string; items:Item[]; events:{status:string;created:string}[]}
+export interface Category {id:number;name:string;parent:number|null}
+export interface Order {comments:{id:number;author:string;message:string}[]; id:number; buyer:number; supplier:number; status:string; delivery:string; address:string; note:string; items:Item[]; events:{status:string;created:string}[]}
 export interface Template {id:number; name:string; lines:{id:number;quantity:number}[]}
-export interface Market {templates:Template[]; addresses:{id:number;address:string}[]; favorites:number[]; customers:{id:number;name:string}[]; prices:{offer:number;buyer:number;price:number}[]; user:{role:string;company:number|null}|null; companies:Company[]; categories:{id:number;name:string}[]; products:Product[]; offers:Offer[]; orders:Order[]}
+export interface Market {history:{id:number;name:string;price_before:number;price_after:number;stock_before:number;stock_after:number;created:string}[]; templates:Template[]; addresses:{id:number;address:string}[]; favorites:number[]; customers:{id:number;name:string}[]; prices:{offer:number;buyer:number;price:number}[]; user:{role:string;company:number|null}|null; companies:Company[]; categories:Category[]; products:Product[]; offers:Offer[]; orders:Order[]}
 export const roles:Record<string,string>={buyer:'Закупщик',supplier:'Поставщик',platform:'Менеджер портала',buyer_admin:'Управляющий заведением',supplier_admin:'Руководитель поставщика'};
 export const statuses:Record<string,string>={new:'Новый',confirmed:'Подтверждён',packing:'Собирается',shipping:'В пути',delivered:'Доставлен',dispute:'Спор',cancelled:'Отменён'};
 export const money=(n:number)=>new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB',maximumFractionDigits:0}).format(n);

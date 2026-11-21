@@ -3,6 +3,7 @@ import {Button,Input,InputNumber,Select,Upload,Alert,Table,Space,Modal} from 'an
 import Papa from 'papaparse';
 import type {Market, Offer} from './types';
 import {money,weekdays} from './types';
+import {Categories} from './Operations';
 
 type Act = (path:string,data:unknown,done?:()=>void)=>Promise<void>;
 type Edit = {id:number; price:number; stock:number};
@@ -136,10 +137,11 @@ export function Workspace({d,act,busy}:WorkspaceProps) {
           : <Select aria-label="Существующая карточка" style={{width:'100%'}} value={target} onChange={setTarget} showSearch optionFilterProp="label"
               options={d.products.filter(product=>product.approved).map(product=>({value:product.id,label:product.name}))}/>}
       </Modal>
+      <Categories market={d} {...{act,busy}}/>
       <h2>Участники</h2>
       {d.companies.map(company=><article className="row" key={company.id}>
-        <span>{company.name} · {company.kind==='supplier'?'Поставщик':'Заведение'}</span>
-        <Button disabled={busy} onClick={()=>void act('company',{id:company.id,active:!company.active})}>{company.active?'Приостановить':'Активировать'}</Button>
+        <span>{company.name} · {company.kind==='supplier'?'Поставщик':'Заведение'}{company.state==='pending'?' · Заявка '+company.registration:''}</span>
+        <Button disabled={busy} onClick={()=>void act('company',{id:company.id,active:!company.active})}>{company.active?'Приостановить':company.state==='pending'?'Одобрить заявку':'Активировать'}</Button>
       </article>)}
     </> : <>
       <h2>Новая карточка</h2>
@@ -154,6 +156,13 @@ export function Workspace({d,act,busy}:WorkspaceProps) {
       </form>
       {drafts.map(product=><p key={product.id}>{product.name} · {product.rejection||'На проверке'}</p>)}
       <Assortment {...{offers,productName,act,busy}}/>
+      <h2>История ассортимента</h2>
+      <Table rowKey="id" dataSource={d.history} pagination={{pageSize:8}} scroll={{x:570}} columns={[
+        {title:'Товар',dataIndex:'name'},
+        {title:'Цена',render:(_,row)=>money(row.price_before)+' → '+money(row.price_after)},
+        {title:'Остаток',render:(_,row)=>row.stock_before+' → '+row.stock_after},
+        {title:'Время',render:(_,row)=>new Date(row.created).toLocaleString('ru-RU',{timeZone:'Europe/Kaliningrad'})},
+      ]}/>
       {d.user?.role==='supplier_admin'&&<SupplierSettings {...{d,act,busy,offers,productName}}/>}
     </>}
   </section>;

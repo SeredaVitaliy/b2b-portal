@@ -6,13 +6,35 @@ export async function readWorkflow(db, user) {
   const favorites = buyer ? (await db.query('SELECT product FROM market_favorites WHERE buyer=$1',[buyer])).rows.map(row => row.product) : [];
   const customers = supplierAdmin ? (await db.query("SELECT id,name FROM companies WHERE kind='buyer' AND active ORDER BY name")).rows : [];
   const prices = supplierAdmin ? (await db.query('SELECT mp.* FROM market_prices mp JOIN offers o ON o.id=mp.offer WHERE o.supplier=$1',[supplierAdmin])).rows : [];
-  return {templates, addresses, favorites, customers, prices};
+  const history = user?.role.startsWith('supplier') ? (await db.query(
+    'SELECT h.*,p.name FROM market_offer_history h JOIN offers o ON o.id=h.offer JOIN products p ON p.id=o.product WHERE o.supplier=$1 ORDER BY h.id DESC LIMIT 40',
+    [user.company])).rows : [];
+  return {templates, addresses, favorites, customers, prices, history};
 }
 
 export async function manageWorkflow(db, user, path, data, {requireValue,number,label}) {
   const buyer = user.role.startsWith('buyer');
   const supplier = user.role.startsWith('supplier');
 
+  if (path === 'order-comment') {
+    const order=await db.query("SELECT id FROM orders WHERE id=$1 AND ($2='platform' OR buyer=$3 OR supplier=$3)",[number(data.id),user.role,user.company]);
+    requireValue(order.rowCount,'Заказ недоступен',404);
+    await db.query('INSERT INTO market_order_comments(order_id,author,message) VALUES($1,$2,$3)',[order.rows[0].id,buyer?'buyer':supplier?'supplier':'platform',label(data.message,500)]);
+    return true;
+  }
+  if (path === 'category') {
+    requireValue(user.role==='platform','Требуется роль менеджера',403);
+    const name=label(data.name,80);
+    const parent=data.parent?number(data.parent):null;
+    if (parent) {
+      const known=await db.query('SELECT id FROM categories WHERE id=$1',[parent]);
+      requireValue(known.rowCount,'Родительская категория недоступна',404);
+    }
+    await db.query("SELECT pg_advisory_xact_lock(hashtext('sv-market-categories'))");
+    const inserted=await db.query('INSERT INTO categories(id,name,parent) SELECT COALESCE(max(id),0)+1,$1,$2 FROM categories ON CONFLICT DO NOTHING RETURNING id',[name,parent]);
+    requireValue(inserted.rowCount,'Категория уже существует',409);
+    return true;
+  }
   if (path === 'offers-batch') {
     requireValue(supplier,'Требуется роль поставщика',403);
     requireValue(Array.isArray(data.rows) && data.rows.length > 0 && data.rows.length <= 1000,'Проверьте список предложений');

@@ -71,6 +71,10 @@ test('гость сравнивает предложения, закупщик �
   await expect(orders).toHaveCount(1);
   await orders.getByRole('button', {name: 'Подтверждён', exact: true}).click();
   await expect(orders.getByRole('button', {name: 'Собирается', exact: true})).toBeVisible();
+  await orders.getByText('Обсуждение заказа', {exact:true}).click();
+  await orders.getByRole('textbox',{name:'Сообщение к заказу'}).fill('Все позиции в наличии');
+  await orders.getByRole('button',{name:'Отправить сообщение'}).click();
+  await expect(orders.getByText('Все позиции в наличии')).toBeVisible();
 });
 
 test('поставщик подаёт карточку, менеджер публикует её в каталоге', async ({page}) => {
@@ -118,7 +122,39 @@ test('поставщик выгружает CSV и сохраняет неско
   await page.getByRole('button', {name: /Сохранить изменения.*2/}).click();
   expect((await saved).status()).toBe(200);
   const after: Market = await (await page.request.get('/api/market/market')).json();
+  expect(after.history.some(entry=>entry.price_after===owned[0].price!+5 && entry.stock_after===owned[0].stock+2)).toBe(true);
   for (const offer of owned) {
     expect(after.offers.find(item=>item.id===offer.id)).toMatchObject({price:offer.price!+5,stock:offer.stock+2});
   }
+});
+
+test('заявка одобряется менеджером, а витрина доступна на телефоне', async ({page}) => {
+  const company = 'Поставщик ' + randomUUID();
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/');
+  await expect(page.getByRole('heading',{name:'Каталог продуктов'})).toBeVisible();
+  const hero = await page.request.get('/market-hero.jpg');
+  expect(hero.status()).toBe(200);
+  expect(hero.headers()['content-type']).toContain('image');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByRole('button',{name:'Поставщики',exact:true}).click();
+  await page.getByRole('button',{name:'Подать заявку'}).click();
+  await page.getByRole('textbox',{name:'Название компании'}).fill(company);
+  await page.getByRole('textbox',{name:'Код заявки'}).fill('0123456789');
+  await page.getByRole('button',{name:'Отправить заявку'}).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:company,exact:true})).toHaveCount(0);
+
+  await page.getByRole('button',{name:'Демо-вход'}).click();
+  await page.getByRole('dialog').getByRole('button',{name:'Менеджер портала',exact:true}).click();
+  await page.getByRole('button',{name:'Кабинет',exact:true}).click();
+  const registration = page.getByRole('article').filter({hasText:company});
+  await registration.getByRole('button',{name:'Одобрить заявку'}).click();
+  await expect(registration.getByRole('button',{name:'Приостановить'})).toBeVisible();
+
+  await page.getByRole('textbox',{name:'Название категории'}).fill('Овощное сырьё '+randomUUID());
+  await page.getByRole('button',{name:'Создать категорию'}).click();
+  await expect(page.getByRole('listitem').filter({hasText:'Овощное сырьё'})).toHaveCount(1);
+  await page.getByRole('button',{name:'Поставщики',exact:true}).click();
+  await expect(page.getByRole('heading',{name:company,exact:true})).toBeVisible();
 });

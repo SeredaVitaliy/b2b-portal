@@ -22,11 +22,12 @@ async function prepare(pool) {
       }
       await client.query('INSERT INTO market_migrations(version) VALUES($1)',[version]);
     }
-    const workflow = '202611210002_workflows';
-    const appliedWorkflow = await client.query('SELECT 1 FROM market_migrations WHERE version=$1',[workflow]);
-    if (!appliedWorkflow.rowCount) {
-      await client.query(await readFile(resolve('market','migrations',workflow+'.sql'),'utf8'));
-      await client.query('INSERT INTO market_migrations(version) VALUES($1)',[workflow]);
+    for (const migration of ['202611210002_workflows','202611210003_operations']) {
+      const applied = await client.query('SELECT 1 FROM market_migrations WHERE version=$1',[migration]);
+      if (!applied.rowCount) {
+        await client.query(await readFile(resolve('market','migrations',migration+'.sql'),'utf8'));
+        await client.query('INSERT INTO market_migrations(version) VALUES($1)',[migration]);
+      }
     }
     await client.query('COMMIT');
   } catch(error) {

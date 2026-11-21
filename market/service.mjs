@@ -60,12 +60,13 @@ export async function handle(req,pool) {
     const {rows:[user]}=await db.query('SELECT s.role,s.company FROM sessions s LEFT JOIN companies c ON c.id=s.company WHERE token=$1 AND expires>now() AND (s.company IS NULL OR c.active)',[digest(token)]);
     let result={},headers={};
     if (req.method==='GET' && path==='market') {
-      const companies=(await db.query("SELECT * FROM companies WHERE (kind='supplier' AND active) OR $1='platform' ORDER BY id",[user?.role||'guest'])).rows;
+      const companies=(await db.query("SELECT id,name,kind,active,minimum,lead_days,description,delivery_days,state,CASE WHEN $1='platform' THEN registration END AS registration FROM companies WHERE (kind='supplier' AND active) OR $1='platform' ORDER BY id",[user?.role||'guest'])).rows;
       const products=(await db.query('SELECT * FROM products WHERE approved OR $1=\'platform\' OR submitted_by=$2 ORDER BY id',[user?.role||'guest',user?.company||null])).rows;
       const offers=(await db.query('SELECT o.id,o.product,o.supplier,CASE WHEN $1 THEN COALESCE(mp.price,o.price) END AS price,stock,pack FROM offers o JOIN products p ON o.product=p.id JOIN companies c ON c.id=o.supplier LEFT JOIN market_prices mp ON mp.offer=o.id AND mp.buyer=$2 WHERE (p.approved AND c.active) OR o.supplier=$2 ORDER BY price,o.id',[!!user,user?.company??null])).rows;
       const orders=user?(await db.query(`SELECT o.*,to_char(delivery,'YYYY-MM-DD') AS delivery,
         (SELECT json_agg(i ORDER BY offer) FROM order_items i WHERE i.order_id=o.id) AS items,
-        (SELECT json_agg(e ORDER BY created) FROM order_events e WHERE e.order_id=o.id) AS events
+        (SELECT json_agg(e ORDER BY created) FROM order_events e WHERE e.order_id=o.id) AS events,
+        COALESCE((SELECT json_agg(c ORDER BY id) FROM market_order_comments c WHERE c.order_id=o.id),'[]') AS comments
         FROM orders o WHERE $1='platform' OR buyer=$2 OR supplier=$2 ORDER BY id DESC LIMIT 200`,[user.role,user.company])).rows:[];
       result={user:user||null,companies,products,offers,orders,...await readWorkflow(db,user),categories:(await db.query('SELECT * FROM categories ORDER BY id')).rows};
     } else {
@@ -82,6 +83,12 @@ export async function handle(req,pool) {
           await db.query('INSERT INTO sessions(token,role,company) VALUES($1,$2,$3)',[digest(next),data.role,roles[data.role]]);
         }
         headers={'Set-Cookie':`market=${path==='login'?next:''}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${path==='login'?14400:0}${req.url.startsWith('https:')?'; Secure':''}`};
+      } else if(path==='enroll') {
+        requireValue(['buyer','supplier'].includes(data.kind),'Выберите тип компании');
+        const registration=label(data.registration,32);
+        requireValue(/^0[0-9]{9}$/.test(registration),'Укажите десятизначный демонстрационный код, начинающийся с нуля');
+        const company=await db.query("INSERT INTO companies(name,kind,active,state,registration) VALUES($1,$2,false,'pending',$3) ON CONFLICT DO NOTHING RETURNING id",[label(data.name,100),data.kind,registration]);
+        requireValue(company.rowCount,'Компания с таким названием уже зарегистрирована',409);
       } else {
         requireValue(user,'Войдите в демо',401);
         if (path==='checkout') await checkout(db,user,data);
@@ -114,7 +121,7 @@ export async function handle(req,pool) {
           }
         } else if (path==='company') {
           requireValue(user.role==='platform' && typeof data.active==='boolean','Недостаточно прав',403);
-          await db.query('UPDATE companies SET active=$1 WHERE id=$2',[data.active,number(data.id)]);
+          await db.query("UPDATE companies SET active=$1,state=CASE WHEN $1 THEN 'active' ELSE 'blocked' END WHERE id=$2",[data.active,number(data.id)]);
         } else if (path==='status') {
           const {rows:[o]}=await db.query('SELECT * FROM orders WHERE id=$1 FOR UPDATE',[number(data.id)]);
           requireValue(o,'Заказ недоступен',404);

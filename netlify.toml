@@ -1,5 +1,5 @@
 [build]
-  command = "mkdir -p client/netlify/database && cp -R netlify/database/migrations client/netlify/database/ && npm install --no-save @netlify/database@1 && npm run build -w client"
+  command = "npm run build -w client"
   publish = "client/dist"
   functions = "netlify/functions"
 
@@ -10,3 +10,6 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+[database.migrations]
+  path = "netlify/database/migrations"

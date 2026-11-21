@@ -8,7 +8,7 @@ import {handle} from '../market/service.mjs';
 const pool = new pg.Pool({connectionString: process.env.DATABASE_URL});
 await initialize(pool);
 const root = resolve('client/dist');
-const types = {'.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'application/javascript'};
+const types = {'.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'application/javascript', '.jpg': 'image/jpeg'};
 
 createServer(async (incoming, outgoing) => {
   const url = new URL(incoming.url, 'http://127.0.0.1:4175');

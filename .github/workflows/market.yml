@@ -29,6 +29,8 @@ jobs:
       - run: npm run build -w client
       - run: npm install --no-save pg@8
       - run: node tests/market-integration.mjs
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --config playwright.market.config.ts
   live:
     runs-on: ubuntu-latest
     needs: integration

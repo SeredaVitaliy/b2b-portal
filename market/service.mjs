@@ -1,3 +1,4 @@
+import { manageWorkflow, readWorkflow } from './workflows.mjs';
 import { randomBytes, createHash } from 'node:crypto';
 const digest = value => createHash('sha256').update(value).digest('hex');
 const roles = {buyer:9, buyer_admin:9, supplier:1, supplier_admin:1, platform:null};
@@ -28,8 +29,8 @@ async function checkout(db,user,data) {
   for (const line of [...data.lines].sort((a,b)=>a.id-b.id)) {
     const id=number(line.id), quantity=number(line.quantity);
     requireValue(!seen.has(id),'Повтор предложения'); seen.add(id);
-    const {rows:[o]}=await db.query(`SELECT o.*,p.name,c.minimum,c.lead_days FROM offers o JOIN products p ON p.id=o.product JOIN companies c ON c.id=o.supplier
-      WHERE o.id=$1 AND p.approved AND c.active FOR UPDATE OF o,c`,[id]);
+    const {rows:[o]}=await db.query(`SELECT o.*,COALESCE(mp.price,o.price) AS price,p.name,c.minimum,c.lead_days,c.delivery_days FROM offers o JOIN products p ON p.id=o.product JOIN companies c ON c.id=o.supplier LEFT JOIN market_prices mp ON mp.offer=o.id AND mp.buyer=$2
+      WHERE o.id=$1 AND p.approved AND c.active FOR UPDATE OF o,c`,[id,user.company]);
     requireValue(o && quantity<=o.stock && quantity%o.pack===0,'Изменился остаток или размер партии',409);
     requireValue(line.price===o.price,'Цена изменилась. Обновите корзину',409);
     if (!groups.has(o.supplier)) groups.set(o.supplier,[]);
@@ -39,7 +40,7 @@ async function checkout(db,user,data) {
     const {minimum,lead_days}=items[0], date=data.dates?.[supplier];
     requireValue(items.reduce((sum,i)=>sum+i.quantity*i.price,0)>=minimum,'Не набрана минимальная сумма заказа');
     requireValue(typeof date==='string' && /^\d{4}-\d{2}-\d{2}$/.test(date),'Выберите дату доставки');
-    const {rows:[time]}=await db.query("SELECT $1::date BETWEEN (now() AT TIME ZONE 'Europe/Kaliningrad')::date+$2::int AND (now() AT TIME ZONE 'Europe/Kaliningrad')::date+60 AS valid",[date,lead_days]);
+    const {rows:[time]}=await db.query("SELECT $1::date BETWEEN (now() AT TIME ZONE 'Europe/Kaliningrad')::date+$2::int AND (now() AT TIME ZONE 'Europe/Kaliningrad')::date+60 AND extract(isodow from $1::date)::int=ANY($3::int[]) AS valid",[date,lead_days,items[0].delivery_days]);
     requireValue(time.valid,'Дата доставки недоступна');
     const {rows:[order]}=await db.query('INSERT INTO orders(checkout,buyer,supplier,address,delivery,note) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',[data.key,user.company,supplier,address,date,note]);
     for (const item of items) {
@@ -61,12 +62,12 @@ export async function handle(req,pool) {
     if (req.method==='GET' && path==='market') {
       const companies=(await db.query("SELECT * FROM companies WHERE (kind='supplier' AND active) OR $1='platform' ORDER BY id",[user?.role||'guest'])).rows;
       const products=(await db.query('SELECT * FROM products WHERE approved OR $1=\'platform\' OR submitted_by=$2 ORDER BY id',[user?.role||'guest',user?.company||null])).rows;
-      const offers=(await db.query('SELECT o.id,o.product,o.supplier,CASE WHEN $1 THEN price END AS price,stock,pack FROM offers o JOIN products p ON o.product=p.id JOIN companies c ON c.id=o.supplier WHERE p.approved AND c.active ORDER BY price,o.id',[!!user])).rows;
+      const offers=(await db.query('SELECT o.id,o.product,o.supplier,CASE WHEN $1 THEN COALESCE(mp.price,o.price) END AS price,stock,pack FROM offers o JOIN products p ON o.product=p.id JOIN companies c ON c.id=o.supplier LEFT JOIN market_prices mp ON mp.offer=o.id AND mp.buyer=$2 WHERE (p.approved AND c.active) OR o.supplier=$2 ORDER BY price,o.id',[!!user,user?.company??null])).rows;
       const orders=user?(await db.query(`SELECT o.*,to_char(delivery,'YYYY-MM-DD') AS delivery,
         (SELECT json_agg(i ORDER BY offer) FROM order_items i WHERE i.order_id=o.id) AS items,
         (SELECT json_agg(e ORDER BY created) FROM order_events e WHERE e.order_id=o.id) AS events
         FROM orders o WHERE $1='platform' OR buyer=$2 OR supplier=$2 ORDER BY id DESC LIMIT 200`,[user.role,user.company])).rows:[];
-      result={user:user||null,companies,products,offers,orders,categories:(await db.query('SELECT * FROM categories ORDER BY id')).rows};
+      result={user:user||null,companies,products,offers,orders,...await readWorkflow(db,user),categories:(await db.query('SELECT * FROM categories ORDER BY id')).rows};
     } else {
       requireValue(req.method==='POST' && req.headers.get('content-type')?.startsWith('application/json'),'Неверный метод',405);
       const origin=req.headers.get('origin');
@@ -94,8 +95,23 @@ export async function handle(req,pool) {
           await db.query('INSERT INTO offers(product,supplier,price,stock) VALUES($1,$2,$3,$4)',[p.id,user.company,number(data.price),number(data.stock,0)]);
         } else if (path==='moderate') {
           requireValue(user.role==='platform','Требуется роль менеджера',403);
-          const updated=await db.query('UPDATE products SET approved=true WHERE id=$1 AND NOT approved RETURNING id',[number(data.id)]);
-          requireValue(updated.rowCount,'Карточка уже обработана',409);
+          const id=number(data.id);
+          const draft=await db.query('SELECT id FROM products WHERE id=$1 AND NOT approved AND rejection IS NULL FOR UPDATE',[id]);
+          requireValue(draft.rowCount,'Карточка уже обработана',409);
+          if(data.decision==='reject') {
+            await db.query('UPDATE products SET rejection=$2 WHERE id=$1',[id,label(data.reason,300)]);
+          } else if(data.decision==='link') {
+            const target=number(data.target);
+            const match=await db.query('SELECT id FROM products WHERE id=$1 AND approved',[target]);
+            requireValue(match.rowCount,'Выберите опубликованную карточку',404);
+            const conflict=await db.query('SELECT 1 FROM offers a JOIN offers b ON b.supplier=a.supplier AND b.product=$2 WHERE a.product=$1',[id,target]);
+            requireValue(!conflict.rowCount,'У поставщика уже есть предложение по этой карточке',409);
+            await db.query('UPDATE offers SET product=$2 WHERE product=$1',[id,target]);
+            await db.query('DELETE FROM products WHERE id=$1',[id]);
+          } else {
+            requireValue(data.decision===undefined||data.decision==='approve','Неизвестное решение');
+            await db.query('UPDATE products SET approved=true WHERE id=$1',[id]);
+          }
         } else if (path==='company') {
           requireValue(user.role==='platform' && typeof data.active==='boolean','Недостаточно прав',403);
           await db.query('UPDATE companies SET active=$1 WHERE id=$2',[data.active,number(data.id)]);
@@ -110,7 +126,7 @@ export async function handle(req,pool) {
           await db.query('UPDATE orders SET status=$1 WHERE id=$2',[data.status,o.id]);
           await db.query('INSERT INTO order_events(order_id,status) VALUES($1,$2)',[o.id,data.status]);
           if(data.status==='cancelled') await db.query('UPDATE offers SET stock=stock+i.quantity FROM order_items i WHERE i.order_id=$1 AND offers.id=i.offer',[o.id]);
-        } else requireValue(false,'Маршрут не найден',404);
+        } else requireValue(await manageWorkflow(db,user,path,data,{requireValue,number,label}),'Маршрут не найден',404);
       }
     }
     await db.query('COMMIT'); return reply(result,200,headers);

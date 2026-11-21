@@ -22,6 +22,12 @@ async function prepare(pool) {
       }
       await client.query('INSERT INTO market_migrations(version) VALUES($1)',[version]);
     }
+    const workflow = '202611210002_workflows';
+    const appliedWorkflow = await client.query('SELECT 1 FROM market_migrations WHERE version=$1',[workflow]);
+    if (!appliedWorkflow.rowCount) {
+      await client.query(await readFile(resolve('market','migrations',workflow+'.sql'),'utf8'));
+      await client.query('INSERT INTO market_migrations(version) VALUES($1)',[workflow]);
+    }
     await client.query('COMMIT');
   } catch(error) {
     await client.query('ROLLBACK');

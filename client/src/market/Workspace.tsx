@@ -1,0 +1,15 @@
+import {useState} from 'react';
+import {Button,Input,InputNumber,Select} from 'antd';
+import type {Market,Offer} from './types';
+import {money} from './types';
+type Act=(path:string,data:unknown,done?:()=>void)=>Promise<void>;
+function OfferRow({o,name,act,busy}:{o:Offer;name:string;act:Act;busy:boolean}){
+ const [price,setPrice]=useState(o.price||1),[stock,setStock]=useState(o.stock);
+ return <div className="edit"><span>{name}</span><InputNumber aria-label="Цена" value={price} min={1} onChange={v=>setPrice(v||1)}/><InputNumber aria-label="Остаток" value={stock} min={0} onChange={v=>setStock(v||0)}/><Button disabled={busy||(price===o.price&&stock===o.stock)} onClick={()=>void act('offer',{id:o.id,price,stock})}>Сохранить</Button></div>;
+}
+export function Workspace({d,act,busy}:{d:Market;act:Act;busy:boolean}){
+ const [q,setQ]=useState(''),[title,setTitle]=useState(''),[category,setCategory]=useState(1),[price,setPrice]=useState(100),[stock,setStock]=useState(20);
+ const platform=d.user?.role==='platform',drafts=d.products.filter(p=>!p.approved);
+ return <section><small>Рабочее пространство</small><h1>{platform?'Управление порталом':'Кабинет поставщика'}</h1><div className="stats"><article><small>Заказы</small><h2>{d.orders.length}</h2></article><article><small>Доставлено на сумму</small><h2>{money(d.orders.filter(o=>o.status==='delivered').reduce((s,o)=>s+o.items.reduce((v,i)=>v+i.price*i.quantity,0),0))}</h2></article></div>
+ {platform?<><h2>Модерация карточек</h2>{!drafts.length&&<p>Все заявки обработаны.</p>}{drafts.map(p=><article className="row" key={p.id}>{p.name}<Button disabled={busy} onClick={()=>void act('moderate',{id:p.id})}>Одобрить</Button></article>)}<h2>Участники</h2>{d.companies.map(c=><article className="row" key={c.id}><span>{c.name} · {c.kind==='supplier'?'Поставщик':'Заведение'}</span><Button disabled={busy} onClick={()=>void act('company',{id:c.id,active:!c.active})}>{c.active?'Приостановить':'Активировать'}</Button></article>)}</>:<><h2>Новая карточка</h2><form className="filters" onSubmit={e=>{e.preventDefault();void act('draft',{name:title,category,price,stock,unit:'уп'},()=>setTitle(''));}}><Input required aria-label="Название" placeholder="Название и фасовка" value={title} onChange={e=>setTitle(e.target.value)}/><Select value={category} onChange={setCategory} options={d.categories.map(c=>({value:c.id,label:c.name}))}/><label>Цена <InputNumber value={price} min={1} onChange={v=>setPrice(v||1)}/></label><label>Остаток <InputNumber value={stock} min={0} onChange={v=>setStock(v||0)}/></label><Button htmlType="submit" disabled={busy}>На модерацию</Button></form>{drafts.map(p=><p key={p.id}>{p.name} · На проверке</p>)}<h2>Ассортимент</h2><Input placeholder="Найти в ассортименте" value={q} onChange={e=>setQ(e.target.value)}/><p>Название · Цена за упаковку · Остаток в упаковках</p>{d.offers.filter(o=>o.supplier===d.user?.company).map(o=>({o,name:d.products.find(p=>p.id===o.product)?.name||''})).filter(x=>x.name.toLowerCase().includes(q.toLowerCase())).map(({o,name})=><OfferRow key={o.id+':'+o.price+':'+o.stock} {...{o,name,act,busy}}/>)}</>}</section>;
+}

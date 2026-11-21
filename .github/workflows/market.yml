@@ -1,0 +1,49 @@
+name: Marketplace
+on:
+  push:
+    branches: [mvp]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: market
+          POSTGRES_PASSWORD: market
+          POSTGRES_DB: market
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://market:market@localhost:5432/market
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run build -w client
+      - run: npm install --no-save pg@8
+      - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f netlify/database/migrations/202611210001_market.sql
+      - run: node tests/market-integration.mjs
+  live:
+    runs-on: ubuntu-latest
+    needs: integration
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Wait for the catalog
+        run: |
+          for attempt in {1..48}; do
+            if curl -fsS --max-time 10 https://sv-market-horeca.netlify.app/api/market/market | jq -e '.products | length >= 320' >/dev/null; then exit 0; fi
+            sleep 5
+          done
+          exit 1
+      - run: node tests/market-smoke.mjs https://sv-market-horeca.netlify.app

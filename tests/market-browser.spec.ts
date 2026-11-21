@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import {expect, test} from '@playwright/test';
 import type {Market} from '../client/src/market/types';
 
@@ -45,12 +46,14 @@ test('гость сравнивает предложения, закупщик �
     await input.fill(String(quantity));
     await input.press('Tab');
   }
+  const note = 'Проверка корзины ' + randomUUID();
+  await cart.getByLabel('Комментарий').fill(note);
   const submitted = page.waitForResponse(response => response.url().endsWith('/api/market/checkout'));
   await cart.getByRole('button', {name: /Оформить/}).click();
   expect((await submitted).status()).toBe(200);
   await expect(page.getByText('Заказы переданы поставщикам')).toBeVisible();
 
-  const orders = page.getByRole('article').filter({hasText: product.name});
+  const orders = page.getByRole('article').filter({hasText: note});
   await expect(orders).toHaveCount(2);
   await page.getByRole('button', {name: 'Закупщик', exact: true}).click();
   await page.getByRole('dialog').getByRole('button', {name: 'Поставщик', exact: true}).click();
@@ -59,4 +62,27 @@ test('гость сравнивает предложения, закупщик �
   await expect(orders).toHaveCount(1);
   await orders.getByRole('button', {name: 'Подтверждён', exact: true}).click();
   await expect(orders.getByRole('button', {name: 'Собирается', exact: true})).toBeVisible();
+});
+
+test('поставщик подаёт карточку, менеджер публикует её в каталоге', async ({page}) => {
+  const title = 'Тестовый товар ' + randomUUID();
+  await page.goto('/');
+  await page.getByRole('button', {name: 'Демо-вход'}).click();
+  await page.getByRole('dialog').getByRole('button', {name: 'Поставщик', exact: true}).click();
+  await page.getByRole('button', {name: 'Кабинет', exact: true}).click();
+  await page.getByRole('textbox', {name: 'Название', exact: true}).fill(title);
+  await page.getByRole('button', {name: 'На модерацию'}).click();
+  await expect(page.getByText(title + ' · На проверке')).toBeVisible();
+
+  await page.getByRole('button', {name: 'Поставщик', exact: true}).click();
+  await page.getByRole('dialog').getByRole('button', {name: 'Менеджер портала', exact: true}).click();
+  await expect(page.getByRole('banner').getByRole('button', {name: 'Менеджер портала', exact: true})).toBeVisible();
+  await page.getByRole('button', {name: 'Кабинет', exact: true}).click();
+  const draft = page.getByRole('article').filter({hasText: title});
+  await draft.getByRole('button', {name: 'Одобрить'}).click();
+  await expect(draft).toHaveCount(0);
+
+  await page.getByRole('button', {name: 'Каталог', exact: true}).click();
+  await page.getByRole('textbox', {name: 'Поиск'}).fill(title);
+  await expect(page.getByRole('heading', {name: title, exact: true})).toBeVisible();
 });

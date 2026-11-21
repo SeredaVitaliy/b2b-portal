@@ -25,13 +25,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --package-lock-only
-      - name: Capture resolved dependency changes
-        run: git diff -- package-lock.json | gzip | base64 -w0
       - run: npm ci
       - run: npm run build -w client
       - run: npm install --no-save pg@8
-      - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f netlify/database/migrations/202611210001_market.sql
       - run: node tests/market-integration.mjs
   live:
     runs-on: ubuntu-latest

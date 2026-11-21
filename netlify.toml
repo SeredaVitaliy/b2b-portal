@@ -5,11 +5,9 @@
 
 [functions]
   node_bundler = "esbuild"
+  included_files = ["market/migrations/*.sql"]
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-[database.migrations]
-  path = "netlify/database/migrations"

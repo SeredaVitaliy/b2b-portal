@@ -144,7 +144,7 @@ export function Assortment({offers, productName, act, busy, history}:{
   async function importCsv(file:File) {
     const csv=await new Promise<Papa.ParseResult<Record<string,string>>>((resolve,reject)=>{
       Papa.parse<Record<string,string>,File>(file,{header:true,skipEmptyLines:'greedy',worker:Papa.WORKERS_SUPPORTED,
-        transformHeader:name=>name.trim().toLowerCase(),complete:resolve,error:reject});
+        complete:resolve,error:reject});
     });
     const hasId=csv.meta.fields?.includes('id');
     if(csv.errors.length || !csv.meta.fields?.includes('price') || (!hasId && !csv.meta.fields?.includes('sku')) || !csv.data.length) {

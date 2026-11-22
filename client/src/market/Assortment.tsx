@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState, type ClipboardEvent, type MouseEvent} from 'react';
-import {Alert, Button, Input, InputNumber, Modal, Table, Upload} from 'antd';
+import {Alert, Button, Input, InputNumber, Modal, Table} from 'antd';
 import Papa from 'papaparse';
 import type {Market, MarketAction, Offer} from './types';
 import {money} from './types';
@@ -33,6 +33,7 @@ export function Assortment({offers, productName, act, busy, history}:{
   const [error,setError]=useState('');
   const [settings,setSettings]=useState<{id:number;sku:string;pack:number;step:number;active:boolean}>();
   const [historyOffer,setHistoryOffer]=useState<Offer>();
+  const csvInput=useRef<HTMLInputElement>(null);
   const anchor=useRef<Cell|null>(null);
   const dragging=useRef(false);
   const visible=offers.filter(offer=>productName(offer).toLowerCase().includes(filter.trim().toLowerCase()))
@@ -211,9 +212,12 @@ export function Assortment({offers, productName, act, busy, history}:{
       }}>Применить к выделенным ({selected.length})</Button>
       <Button onClick={()=>downloadCsv(exportRows())}>Экспорт CSV</Button>
       <Button onClick={()=>void exportExcel().catch(()=>setError('Не удалось выгрузить Excel.'))}>Экспорт Excel</Button>
-      <Upload accept=".csv,text/csv" disabled={busy} showUploadList={false} beforeUpload={file=>{
-        void importCsv(file).catch(()=>setError('Не удалось прочитать CSV.'));return false;
-      }}><Button disabled={busy}>Импорт CSV</Button></Upload>
+      <input ref={csvInput} hidden type="file" accept=".csv,text/csv" disabled={busy} onChange={event=>{
+        const file=event.currentTarget.files?.[0];
+        event.currentTarget.value='';
+        if(file) void importCsv(file).catch(()=>setError('Не удалось прочитать CSV.'));
+      }}/>
+      <Button disabled={busy} onClick={()=>csvInput.current?.click()}>Импорт CSV</Button>
       <Button disabled={busy||!patches.size} onClick={reset}>Сбросить изменения</Button>
       <Button type="primary" loading={busy} disabled={!patches.size} onClick={()=>save([...patches.values()])}>
         Сохранить изменения{patches.size?' · '+patches.size:''}

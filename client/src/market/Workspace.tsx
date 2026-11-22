@@ -116,7 +116,7 @@ export function Workspace({d,act,busy}:WorkspaceProps) {
         </Space>
       </form>
       {drafts.map(product=><p key={product.id}>{product.name} · {product.rejection||'На проверке'}</p>)}
-      <Assortment key={d.user?.company} history={d.history} {...{offers,productName,act,busy}}/>
+      <Assortment key={'assortment-'+d.user?.company} history={d.history} {...{offers,productName,act,busy}}/>
       <h2>История ассортимента</h2>
       <Table rowKey="id" dataSource={d.history} pagination={{pageSize:8}} scroll={{x:570}} columns={[
         {title:'Товар',dataIndex:'name'},
@@ -125,7 +125,7 @@ export function Workspace({d,act,busy}:WorkspaceProps) {
         {title:'Время',render:(_,row)=>new Date(row.created).toLocaleString('ru-RU',{timeZone:'Europe/Kaliningrad'})},
       ]}/>
       {d.user?.role==='supplier_admin'&&<CompanyProfile market={d} {...{act,busy}}/>}
-      {d.user?.role?.startsWith('supplier')&&<SupplierSettings key={d.user.company} {...{d,act,busy,offers,productName}}/>}
+      {d.user?.role?.startsWith('supplier')&&<SupplierSettings key={'settings-'+d.user.company} {...{d,act,busy,offers,productName}}/>}
     </>}
   </section>;
 }

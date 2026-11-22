@@ -4,6 +4,7 @@ import Papa from 'papaparse';
 import type {Market, Offer} from './types';
 import {money,weekdays} from './types';
 import {Categories} from './Operations';
+import {CompanyProfile,ParticipantTeam,PlatformAnalytics} from './CompanyProfile';
 
 type Act = (path:string,data:unknown,done?:()=>void)=>Promise<void>;
 type Edit = {id:number; price:number; stock:number};
@@ -22,6 +23,7 @@ function Assortment({offers,productName,act,busy}:{offers:Offer[]; productName:(
   const [filter,setFilter] = useState('');
   const [edits,setEdits] = useState<Record<number,Edit>>({});
   const [importError,setImportError] = useState('');
+  const [settings,setSettings] = useState<{id:number;sku:string;pack:number;step:number;active:boolean}>();
   const visibleOffers = offers.filter(offer=>productName(offer).toLowerCase().includes(filter.trim().toLowerCase()));
   const currentRow = (offer:Offer):Edit => edits[offer.id] ?? {id:offer.id,price:offer.price!,stock:offer.stock};
   const updates = Object.values(edits);
@@ -61,7 +63,17 @@ function Assortment({offers,productName,act,busy}:{offers:Offer[]; productName:(
       {title:'Товар',render:(_,offer)=>productName(offer)},
       {title:'Цена за упаковку, ₽',render:(_,offer)=><InputNumber aria-label="Цена" min={1} max={1000000} precision={0} value={currentRow(offer).price} onChange={price=>price!==null&&setEdits(previous=>({...previous,[offer.id]:{...currentRow(offer),price}}))}/>},
       {title:'Остаток, уп.',render:(_,offer)=><InputNumber aria-label="Остаток" min={0} max={1000000} precision={0} value={currentRow(offer).stock} onChange={stock=>stock!==null&&setEdits(previous=>({...previous,[offer.id]:{...currentRow(offer),stock}}))}/>},
+      {title:'Предложение',render:(_,offer)=><Button onClick={()=>setSettings({id:offer.id,sku:offer.sku??'',pack:offer.pack,step:offer.step??offer.pack,active:offer.active!==false})}>{offer.active===false?'Скрыто':'Условия'}</Button>},
     ]}/>
+    <Modal open={!!settings} title="Условия предложения" onCancel={()=>setSettings(undefined)} okText="Сохранить" cancelText="Отмена"
+      confirmLoading={busy} onOk={()=>settings&&void act('offer-details',settings,()=>setSettings(undefined))}>
+      {settings&&<div className="rolelist">
+        <label>Артикул<Input value={settings.sku} maxLength={80} onChange={event=>setSettings({...settings,sku:event.target.value})}/></label>
+        <label>Минимальная партия <InputNumber min={1} max={1000000} precision={0} value={settings.pack} onChange={pack=>pack!==null&&setSettings({...settings,pack})}/></label>
+        <label>Шаг заказа <InputNumber min={1} max={1000000} precision={0} value={settings.step} onChange={step=>step!==null&&setSettings({...settings,step})}/></label>
+        <label><input type="checkbox" checked={settings.active} onChange={event=>setSettings({...settings,active:event.target.checked})}/> Показывать в каталоге</label>
+      </div>}
+    </Modal>
   </>;
 }
 
@@ -71,6 +83,7 @@ function SupplierSettings({d,act,busy,offers,productName}:WorkspaceProps & {offe
   const [lead,setLead] = useState(company.lead_days);
   const [description,setDescription] = useState(company.description);
   const [days,setDays] = useState(company.delivery_days);
+  const [area,setArea] = useState(company.delivery_area??'Калининград');
   const [customer,setCustomer] = useState<number>();
   const [offer,setOffer] = useState<number>();
   const [price,setPrice] = useState(100);
@@ -79,12 +92,14 @@ function SupplierSettings({d,act,busy,offers,productName}:WorkspaceProps & {offe
     <article>
       <Input.TextArea aria-label="Описание поставщика" value={description} maxLength={1000} onChange={event=>setDescription(event.target.value)}/>
       <div className="filters">
+        <Input aria-label="Зоны доставки" placeholder="Зоны доставки" value={area} maxLength={250} onChange={event=>setArea(event.target.value)}/>
         <label>Мин. сумма <InputNumber min={0} value={minimum} onChange={n=>setMinimum(n??0)}/></label>
         <label>Срок в днях <InputNumber min={1} max={14} value={lead} onChange={n=>setLead(n??1)}/></label>
         <Select aria-label="Дни доставки" mode="multiple" value={days} onChange={setDays} options={weekdays.map((label,index)=>({label,value:index+1}))}/>
-        <Button disabled={busy||!days.length} onClick={()=>void act('supplier-settings',{minimum,lead,description,days})}>Сохранить условия</Button>
+        <Button disabled={busy||!days.length||!area.trim()} onClick={()=>void act('supplier-settings',{minimum,lead,description,days,area})}>Сохранить условия</Button>
       </div>
     </article>
+    {d.user?.role==='supplier_admin'&&<>
     <h2>Персональные цены</h2>
     <article>
       <div className="filters">
@@ -95,11 +110,13 @@ function SupplierSettings({d,act,busy,offers,productName}:WorkspaceProps & {offe
       </div>
       {d.prices.map(item=><div className="row" key={item.offer+':'+item.buyer}><span>{d.customers.find(customer=>customer.id===item.buyer)?.name} · {productName(offers.find(offer=>offer.id===item.offer)!)} · {money(item.price)}</span><Button disabled={busy} onClick={()=>void act('personal-price',{offer:item.offer,buyer:item.buyer,remove:true})}>Удалить</Button></div>)}
     </article>
+    </>}
   </>;
 }
 
 export function Workspace({d,act,busy}:WorkspaceProps) {
   const [title,setTitle] = useState('');
+  const [description,setDescription] = useState('');
   const [category,setCategory] = useState(1);
   const [price,setPrice] = useState(100);
   const [stock,setStock] = useState(20);
@@ -113,13 +130,20 @@ export function Workspace({d,act,busy}:WorkspaceProps) {
   const drafts = d.products.filter(product=>!product.approved);
   const offers = d.offers.filter(offer=>offer.supplier===d.user?.company);
   const productName = (offer:Offer|undefined)=>d.products.find(product=>product.id===offer?.product)?.name ?? 'Предложение';
+  const weekAgo = Date.now()-7*86_400_000;
+  const weeklyRevenue = d.orders.filter(order=>order.status==='delivered'&&order.events.some(event=>event.status==='delivered'&&Date.parse(event.created)>=weekAgo))
+    .flatMap(order=>order.items).reduce((sum,item)=>sum+item.price*item.quantity,0);
+  const lowStock = offers.filter(offer=>offer.active!==false&&offer.stock<5*offer.pack)
+    .sort((a,b)=>a.stock-b.stock);
   return <section>
     <h1>{platform?'Управление порталом':'Кабинет поставщика'}</h1>
-    <div className="stats">
-      <article><small>Заказов в работе</small><h2>{d.orders.filter(order=>['new','confirmed','packing','shipping'].includes(order.status)).length}</h2></article>
-      <article><small>Доставлено на сумму</small><h2>{money(d.orders.filter(order=>order.status==='delivered').flatMap(order=>order.items).reduce((sum,item)=>sum+item.price*item.quantity,0))}</h2></article>
-    </div>
+    {!platform&&<div className="stats">
+      <article><small>Новые заказы</small><h2>{d.orders.filter(order=>order.status==='new').length}</h2></article>
+      <article><small>Выручка за 7 дней</small><h2>{money(weeklyRevenue)}</h2></article>
+      <article><small>Позиций на исходе</small><h2>{lowStock.length}</h2></article>
+    </div>}
     {platform ? <>
+      {d.analytics&&<PlatformAnalytics analytics={d.analytics}/>}
       <h2>Модерация карточек</h2>
       {!drafts.filter(product=>!product.rejection).length&&<p>Все заявки обработаны.</p>}
       {drafts.filter(product=>!product.rejection).map(product=><article className="row" key={product.id}>
@@ -140,13 +164,18 @@ export function Workspace({d,act,busy}:WorkspaceProps) {
       <Categories market={d} {...{act,busy}}/>
       <h2>Участники</h2>
       {d.companies.map(company=><article className="row" key={company.id}>
-        <span>{company.name} · {company.kind==='supplier'?'Поставщик':'Заведение'}{company.state==='pending'?' · Заявка '+company.registration:''}</span>
+        <span>{company.name} · {company.kind==='supplier'?'Поставщик':'Заведение'}{company.state==='pending'?' · Заявка '+company.registration:''}{company.tax_id&&<small> · {company.legal_name}, ИНН {company.tax_id}</small>}</span>
         <Button disabled={busy} onClick={()=>void act('company',{id:company.id,active:!company.active})}>{company.active?'Приостановить':company.state==='pending'?'Одобрить заявку':'Активировать'}</Button>
       </article>)}
+      <ParticipantTeam market={d} {...{act,busy}}/>
     </> : <>
+      {lowStock.length>0&&<details><summary>Товары с низким остатком</summary>
+        {lowStock.map(offer=><p key={offer.id}>{productName(offer)} · {offer.stock} уп.</p>)}
+      </details>}
       <h2>Новая карточка</h2>
-      <form className="filters" onSubmit={event=>{event.preventDefault();void act('draft',{name:title,category,price,stock,unit:'уп'},()=>setTitle(''));}}>
+      <form className="filters" onSubmit={event=>{event.preventDefault();void act('draft',{name:title,description,category,price,stock,unit:'уп'},()=>{setTitle('');setDescription('');});}}>
         <Input required maxLength={200} aria-label="Название" placeholder="Название и фасовка" value={title} onChange={event=>setTitle(event.target.value)}/>
+        <Input maxLength={1000} aria-label="Описание товара" placeholder="Описание товара" value={description} onChange={event=>setDescription(event.target.value)}/>
         <Select aria-label="Категория" value={category} onChange={setCategory} options={d.categories.map(item=>({value:item.id,label:item.name}))}/>
         <Space wrap>
           <label>Цена <InputNumber value={price} min={1} onChange={n=>setPrice(n??1)}/></label>
@@ -163,7 +192,8 @@ export function Workspace({d,act,busy}:WorkspaceProps) {
         {title:'Остаток',render:(_,row)=>row.stock_before+' → '+row.stock_after},
         {title:'Время',render:(_,row)=>new Date(row.created).toLocaleString('ru-RU',{timeZone:'Europe/Kaliningrad'})},
       ]}/>
-      {d.user?.role==='supplier_admin'&&<SupplierSettings {...{d,act,busy,offers,productName}}/>}
+      {d.user?.role==='supplier_admin'&&<CompanyProfile market={d} {...{act,busy}}/>}
+      {d.user?.role?.startsWith('supplier')&&<SupplierSettings key={d.user.company} {...{d,act,busy,offers,productName}}/>}
     </>}
   </section>;
 }

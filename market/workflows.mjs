@@ -9,12 +9,59 @@ export async function readWorkflow(db, user) {
   const history = user?.role.startsWith('supplier') ? (await db.query(
     'SELECT h.*,p.name FROM market_offer_history h JOIN offers o ON o.id=h.offer JOIN products p ON p.id=o.product WHERE o.supplier=$1 ORDER BY h.id DESC LIMIT 40',
     [user.company])).rows : [];
-  return {templates, addresses, favorites, customers, prices, history};
+  const members = ['platform','buyer_admin','supplier_admin'].includes(user?.role) ? (await db.query(`
+    SELECT id,company,name,email,role,active FROM market_members WHERE $1='platform' OR company=$2 ORDER BY id`,
+    [user.role,user.company])).rows : [];
+  const analytics = user?.role === 'platform' ? (await db.query(`SELECT
+    (SELECT count(*)::int FROM orders) AS orders,
+    (SELECT count(DISTINCT buyer)::int FROM orders WHERE status<>'cancelled') AS buyers,
+    (SELECT count(*)::int FROM orders WHERE status='dispute') AS disputes,
+    (SELECT coalesce(sum(i.price::bigint*i.quantity),0)::float8 FROM order_items i JOIN orders o ON o.id=i.order_id WHERE o.status='delivered') AS turnover,
+    (SELECT coalesce(json_agg(r),'[]') FROM (SELECT c.name, sum(i.price::bigint*i.quantity)::float8 AS turnover
+      FROM order_items i JOIN orders o ON o.id=i.order_id JOIN companies c ON c.id=o.supplier
+      WHERE o.status='delivered' GROUP BY c.id ORDER BY turnover DESC,c.name LIMIT 5) r) AS suppliers,
+    (SELECT coalesce(json_agg(r),'[]') FROM (SELECT c.name, sum(i.price::bigint*i.quantity)::float8 AS turnover
+      FROM order_items i JOIN orders o ON o.id=i.order_id JOIN offers f ON f.id=i.offer
+      JOIN products p ON p.id=f.product JOIN categories c ON c.id=p.category
+      WHERE o.status='delivered' GROUP BY c.id ORDER BY turnover DESC,c.name LIMIT 5) r) AS categories`)).rows[0] : null;
+  return {templates, addresses, favorites, customers, prices, history, members, analytics};
 }
 
-export async function manageWorkflow(db, user, path, data, {requireValue,number,label}) {
+export async function manageWorkflow(db, user, path, data, {requireValue,number,label,digest}) {
   const buyer = user.role.startsWith('buyer');
   const supplier = user.role.startsWith('supplier');
+
+  if (path === 'company-profile') {
+    requireValue(['buyer_admin','supplier_admin'].includes(user.role),'Требуется роль руководителя компании',403);
+    const legalName=label(data.legalName,180), taxId=label(data.taxId,12);
+    requireValue(/^(?:\d{10}|\d{12})$/.test(taxId),'ИНН должен содержать 10 или 12 цифр');
+    await db.query('UPDATE companies SET legal_name=$1,tax_id=$2 WHERE id=$3',[legalName,taxId,user.company]);
+    return true;
+  }
+  if (path === 'member') {
+    const platform=user.role==='platform';
+    requireValue(platform||['buyer_admin','supplier_admin'].includes(user.role),'Требуется роль руководителя компании',403);
+    const company=platform?number(data.company):user.company;
+    const {rows:[organization]}=await db.query('SELECT kind FROM companies WHERE id=$1 AND active',[company]);
+    requireValue(organization,'Компания недоступна',404);
+    const allowedRoles=[organization.kind,organization.kind+'_admin'];
+    requireValue(allowedRoles.includes(data.role),'Роль не подходит для этой компании');
+    if (data.id !== undefined) {
+      const id=number(data.id);
+      requireValue(id!==user.member && typeof data.active==='boolean','Изменить собственный доступ нельзя');
+      const updated=await db.query('UPDATE market_members SET role=$1,active=$2 WHERE id=$3 AND company=$4 RETURNING id',[data.role,data.active,id,company]);
+      requireValue(updated.rowCount,'Сотрудник недоступен',404);
+      await db.query('DELETE FROM sessions WHERE member=$1',[id]);
+    } else {
+      const email=label(data.email,254).toLowerCase(), code=label(data.code,80);
+      requireValue(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),'Укажите корректную почту');
+      requireValue(/^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(code),'Некорректный код доступа');
+      const inserted=await db.query(`INSERT INTO market_members(company,name,email,role,invite_hash)
+        VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING RETURNING id`,[company,label(data.name,100),email,data.role,digest(code)]);
+      requireValue(inserted.rowCount,'Сотрудник с такой почтой уже существует',409);
+    }
+    return true;
+  }
 
   if (path === 'order-comment') {
     const order=await db.query("SELECT id FROM orders WHERE id=$1 AND ($2='platform' OR buyer=$3 OR supplier=$3)",[number(data.id),user.role,user.company]);
@@ -46,6 +93,14 @@ export async function manageWorkflow(db, user, path, data, {requireValue,number,
     requireValue(updated.rowCount === rows.length,'В списке есть недоступное предложение',404);
     return true;
   }
+  if (path === 'offer-details') {
+    requireValue(supplier,'Требуется роль поставщика',403);
+    requireValue(typeof data.active==='boolean'&&typeof data.sku==='string'&&data.sku.length<=80,'Проверьте параметры предложения');
+    const updated=await db.query('UPDATE offers SET sku=$1,pack=$2,step=$3,active=$4 WHERE id=$5 AND supplier=$6 RETURNING id',
+      [data.sku.trim(),number(data.pack),number(data.step),data.active,number(data.id),user.company]);
+    requireValue(updated.rowCount,'Предложение недоступно',404);
+    return true;
+  }
   if (path === 'template') {
     requireValue(buyer,'Требуется роль закупщика',403);
     if (data.remove) {
@@ -57,7 +112,11 @@ export async function manageWorkflow(db, user, path, data, {requireValue,number,
     requireValue(new Set(lines.map(row=>row.id)).size === lines.length,'Позиции шаблона повторяются');
     const exists = await db.query('SELECT count(*)::int AS count FROM offers WHERE id=ANY($1::int[])',[lines.map(row=>row.id)]);
     requireValue(exists.rows[0].count === lines.length,'В шаблоне есть недоступные позиции');
-    await db.query('INSERT INTO market_templates(buyer,name,lines) VALUES($1,$2,$3)',[user.company,label(data.name,100),JSON.stringify(lines)]);
+    const values=[user.company,label(data.name,100),JSON.stringify(lines)];
+    if (data.id!==undefined) {
+      const updated=await db.query('UPDATE market_templates SET name=$2,lines=$3 WHERE buyer=$1 AND id=$4 RETURNING id',[...values,number(data.id)]);
+      requireValue(updated.rowCount,'Шаблон недоступен',404);
+    } else await db.query('INSERT INTO market_templates(buyer,name,lines) VALUES($1,$2,$3)',values);
     return true;
   }
   if (path === 'favorite') {
@@ -77,13 +136,14 @@ export async function manageWorkflow(db, user, path, data, {requireValue,number,
     return true;
   }
   if (path === 'supplier-settings') {
-    requireValue(user.role==='supplier_admin','Требуется роль руководителя поставщика',403);
+    requireValue(supplier,'Требуется роль поставщика',403);
     requireValue(Array.isArray(data.days) && data.days.length && data.days.every(day=>Number.isInteger(day)&&day>=1&&day<=7),'Выберите хотя бы один день доставки');
     requireValue(typeof data.description==='string' && data.description.length<=1000,'Описание не длиннее 1000 символов');
     const lead = number(data.lead);
     requireValue(lead<=14,'Срок доставки не дольше 14 дней');
-    await db.query('UPDATE companies SET minimum=$1,lead_days=$2,description=$3,delivery_days=$4 WHERE id=$5',
-      [number(data.minimum,0),lead,data.description.trim(),[...new Set(data.days)],user.company]);
+    const area=data.area===undefined?null:label(data.area,250);
+    await db.query('UPDATE companies SET minimum=$1,lead_days=$2,description=$3,delivery_days=$4,delivery_area=COALESCE($5,delivery_area) WHERE id=$6',
+      [number(data.minimum,0),lead,data.description.trim(),[...new Set(data.days)],area,user.company]);
     return true;
   }
   if (path === 'personal-price') {

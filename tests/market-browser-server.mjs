@@ -22,7 +22,7 @@ createServer(async (incoming, outgoing) => {
       outgoing.end(Buffer.from(await response.arrayBuffer()));
       return;
     }
-    const path = resolve(root, '.' + (url.pathname === '/' ? '/index.html' : url.pathname));
+    const path = resolve(root, '.' + (extname(url.pathname) ? url.pathname : '/index.html'));
     if (!path.startsWith(root + sep)) {
       outgoing.writeHead(404).end();
       return;

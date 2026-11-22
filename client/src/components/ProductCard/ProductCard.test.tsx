@@ -2,6 +2,11 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders, makeProduct } from "@/test/utils";
 import ProductCard from "./ProductCard";
+import { vi } from "vitest";
+
+vi.mock("@/api/PricingApi", () => ({
+  getMyOverrides: async () => ({ companyId: 0, products: {}, categories: {} }),
+}));
 
 describe("ProductCard", () => {
   it("товар не в корзине — показывает кнопку «В корзину»", () => {

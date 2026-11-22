@@ -5,7 +5,7 @@ import type {Market} from '../client/src/market/types';
 test('гость сравнивает предложения, закупщик оформляет корзину, поставщик подтверждает заказ', async ({page}) => {
   await page.goto('/');
   await expect(page.getByRole('heading', {name: 'Каталог продуктов'})).toBeVisible();
-  await expect(page.getByRole('button', {name: /Цена после входа/}).first()).toBeVisible();
+  await expect(page.getByRole('link', {name: /Цена после входа/}).first()).toBeVisible();
   await expect(page.getByRole('button', {name: 'Заказы', exact: true})).toHaveCount(0);
 
   await page.getByRole('button', {name: 'Демо-вход'}).click();
@@ -26,15 +26,27 @@ test('гость сравнивает предложения, закупщик �
   const selected = [offers.find(offer => offer.supplier === 1)!, offers.find(offer => offer.supplier !== 1)!];
 
   await page.getByRole('textbox', {name: 'Поиск'}).fill(product.name);
-  await page.getByRole('button').filter({has: page.getByRole('heading', {name: product.name, exact: true})}).click();
-  const details = page.getByRole('dialog');
+  const card = page.getByRole('link').filter({has: page.getByRole('heading', {name: product.name, exact: true})});
+  await card.scrollIntoViewIfNeeded();
+  await expect.poll(() => card.locator('img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  const imagePath = await card.locator('img').getAttribute('src');
+  expect(imagePath).toMatch(/^\/ingredients\//);
+  await card.click();
+  await expect(page).toHaveURL(new RegExp('/products/'+product.id+'$'));
+  await expect(page.getByRole('heading', {name: product.name, exact: true, level: 1})).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', {name: product.name, exact: true, level: 1})).toBeVisible();
+  const productPhoto = page.getByRole('img', {name: product.name, exact: true});
+  await expect(productPhoto).toHaveAttribute('src', imagePath!);
+  await expect.poll(() => productPhoto.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  const details = page.getByRole('main');
   for (const offer of selected) {
     const company = catalog.companies.find(item => item.id === offer.supplier)!;
     const row = details.getByRole('article').filter({hasText: company.name});
     await expect(row.getByText(/₽/)).toBeVisible();
     await row.getByRole('button', {name: 'В корзину'}).click();
   }
-  await details.getByRole('button', {name: 'Close'}).click();
+  await page.getByRole('navigation',{name:'Навигация по каталогу'}).getByRole('link',{name:'Каталог'}).click();
   await page.getByRole('button', {name: 'Открыть корзину'}).click();
   const cart = page.getByRole('dialog');
   await expect(cart.getByRole('article')).toHaveCount(2);
@@ -140,6 +152,8 @@ test('заявка одобряется менеджером, а витрина 
   await page.getByRole('button',{name:'Поставщики',exact:true}).click();
   await page.getByRole('button',{name:'Подать заявку'}).click();
   await page.getByRole('textbox',{name:'Название компании'}).fill(company);
+  await page.getByRole('textbox',{name:'Юридическое название'}).fill('ООО Демо');
+  await page.getByRole('textbox',{name:'ИНН'}).fill('0123456789');
   await page.getByRole('textbox',{name:'Код заявки'}).fill('0123456789');
   await page.getByRole('button',{name:'Отправить заявку'}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -157,4 +171,33 @@ test('заявка одобряется менеджером, а витрина 
   await expect(page.getByRole('listitem').filter({hasText:'Овощное сырьё'})).toHaveCount(1);
   await page.getByRole('button',{name:'Поставщики',exact:true}).click();
   await expect(page.getByRole('heading',{name:company,exact:true})).toBeVisible();
+});
+
+test('менеджер видит аналитику и может отозвать доступ сотрудника заведения', async ({page, browser}) => {
+  const post = (action: string, data: object) => page.request.post('/api/market/'+action, {data});
+  expect((await post('login', {role: 'platform'})).status()).toBe(200);
+  const overview: Market = await (await page.request.get('/api/market/market')).json();
+  const company = overview.companies.find(item => item.kind==='buyer' && item.active && item.id!==9)!;
+  const email = `${randomUUID()}@example.test`, code = randomUUID();
+  expect((await post('member', {company:company.id, name:'Демо сотрудник', email, code, role:'buyer'})).status()).toBe(200);
+  await page.goto('/workspace');
+  await expect(page.getByRole('heading', {name:'Аналитика площадки'})).toBeVisible();
+  await expect(page.getByText('Оборот доставленных заказов')).toBeVisible();
+
+  const staff = await browser.newContext({baseURL:'http://127.0.0.1:4175'});
+  try {
+    const login = () => staff.request.post('/api/market/login', {data:{email,code}});
+    expect((await login()).status()).toBe(200);
+    const employee: Market = await (await staff.request.get('/api/market/market')).json();
+    expect(employee.user).toMatchObject({role:'buyer',company:company.id});
+    expect(employee.orders.length).toBeGreaterThan(0);
+    expect(employee.orders.every(order=>order.buyer===company.id)).toBe(true);
+    expect(employee.analytics).toBeNull();
+    expect(employee.members).toEqual([]);
+    expect((await post('member', {id:employee.user?.member,company:company.id,role:'buyer',active:false})).status()).toBe(200);
+    expect((await (await staff.request.get('/api/market/market')).json()).user).toBeNull();
+    expect((await login()).status()).toBe(401);
+  } finally {
+    await staff.close();
+  }
 });

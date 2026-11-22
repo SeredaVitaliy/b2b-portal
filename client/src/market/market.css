@@ -87,11 +87,15 @@ article .ant-tag { margin-bottom: 8px; }
 .rolelist { display: grid; gap: 10px; }
 .bottom { border-top: 1px solid var(--line); color: var(--muted); }
 .stats article { flex: 1; }
+.stats { flex-wrap: wrap; }
+.stats article { min-width: 145px; }
+.report-columns { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,285px),1fr)); gap: 12px; }
 .cartrow { padding: 9px 0; border-bottom: 1px solid var(--line); }
 .cartrow > span:first-child { flex: 1; }
 .ant-drawer-body > label { display: block; margin: 12px 0; }
 .ant-drawer-body article label .ant-select { margin-left: 7px; min-width: 138px; }
 .cart-template { margin-top: 10px; }
+.template-line { padding: 8px 0; border-bottom: 1px solid var(--line); }
 form .ant-input { max-width: 340px; }
 
 @media (max-width: 1000px) {
@@ -115,3 +119,22 @@ form .ant-input { max-width: 340px; }
   .stats h2 { font-size: 23px; }
   .bottom { font-size: 13px; }
 }
+
+.card, .supplier { display: block; text-decoration: none; }
+.product-photo { aspect-ratio: 4/3; overflow: hidden; background: #ece8df; }
+.product-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.product-photo-detail { aspect-ratio: 1; border: 1px solid var(--line); }
+.product-detail > nav { margin: 0 0 20px; }
+.product-summary { display: grid; grid-template-columns: minmax(210px,380px) minmax(0,1fr); align-items: center; gap: clamp(20px,4vw,64px); }
+.product-summary p { max-width: 56ch; }
+.offer-row { display: grid; grid-template-columns: 1.45fr 1fr auto; gap: 18px; align-items: center; }
+.offer-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.offer-actions small { flex-basis: 100%; }
+@media (max-width: 660px) {
+ .product-summary { grid-template-columns: 1fr; }
+ .product-photo-detail { max-width: 360px; }
+ .offer-row { grid-template-columns: 1fr; }
+}
+
+.filters > .ant-input[aria-label='Поиск заказов'] { flex: 1 1 240px; max-width: 360px; }
+.filters input[type=date] { padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); }

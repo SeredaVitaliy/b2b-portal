@@ -199,8 +199,8 @@ export function Assortment({offers, productName, act, busy, history}:{
     </div>;
   }
 
-  return <>
-    <div className="heading"><h2>Редактор цен и остатков</h2><Input aria-label="Поиск в ассортименте" placeholder="Найти в ассортименте"
+  return <section aria-labelledby="assortment-title">
+    <div className="heading"><h2 id="assortment-title">Редактор цен и остатков</h2><Input aria-label="Поиск в ассортименте" placeholder="Найти в ассортименте"
       value={filter} onChange={event=>{setFilter(event.target.value);setSelected([]);anchor.current=null;}}/></div>
     <p className="sheet-help">Выделите диапазон мышью или через Shift. Чтобы вставить диапазон из Excel, нажмите на первую ячейку и вставьте данные.</p>
     <div className="filters">
@@ -253,5 +253,5 @@ export function Assortment({offers, productName, act, busy, history}:{
         <label><input type="checkbox" checked={settings.active} onChange={event=>setSettings({...settings,active:event.target.checked})}/> Показывать в каталоге</label>
       </div>}
     </Modal>
-  </>;
+  </section>;
 }

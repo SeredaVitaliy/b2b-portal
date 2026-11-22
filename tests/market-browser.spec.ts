@@ -126,8 +126,13 @@ test('поставщик выгружает CSV и сохраняет неско
   expect(csv.suggestedFilename()).toBe('ассортимент.csv');
 
   async function importCsv(name:string,content:string) {
+    const editor=page.getByRole('region',{name:'Редактор цен и остатков',exact:true});
+    const trigger=editor.getByRole('button',{name:'Импорт CSV',exact:true});
+    await expect(editor).toHaveCount(1);
+    await expect(trigger).toHaveCount(1);
+    await expect(trigger).toBeEnabled();
     const opened=page.waitForEvent('filechooser');
-    await page.getByRole('button',{name:'Импорт CSV'}).click();
+    await trigger.click();
     await (await opened).setFiles({name,mimeType:'text/csv',buffer:Buffer.from(content)});
   }
   await importCsv('import.csv','id,price,stock\n'+owned.map(offer=>[offer.id,offer.price!+5,offer.stock+2].join(',')).join('\n'));

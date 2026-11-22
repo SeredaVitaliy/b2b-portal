@@ -125,11 +125,12 @@ test('поставщик выгружает CSV и сохраняет неско
   const csv = await downloaded;
   expect(csv.suggestedFilename()).toBe('ассортимент.csv');
 
-  await page.locator('input[type=file]').setInputFiles({
-    name: 'import.csv',
-    mimeType: 'text/csv',
-    buffer: Buffer.from('id,price,stock\n'+owned.map(offer=>[offer.id,offer.price!+5,offer.stock+2].join(',')).join('\n')),
-  });
+  async function importCsv(name:string,content:string) {
+    const opened=page.waitForEvent('filechooser');
+    await page.getByRole('button',{name:'Импорт CSV'}).click();
+    await (await opened).setFiles({name,mimeType:'text/csv',buffer:Buffer.from(content)});
+  }
+  await importCsv('import.csv','id,price,stock\n'+owned.map(offer=>[offer.id,offer.price!+5,offer.stock+2].join(',')).join('\n'));
   const saved = page.waitForResponse(response=>response.url().endsWith('/offers-batch'));
   await page.getByRole('button', {name: /Сохранить изменения.*2/}).click();
   expect((await saved).status()).toBe(200);
@@ -140,9 +141,7 @@ test('поставщик выгружает CSV и сохраняет неско
   }
 
   const offer=owned[0];
-  await page.locator('input[type=file]').setInputFiles({
-    name:'prices.csv',mimeType:'text/csv',buffer:Buffer.from('sku,price\n'+offer.sku+','+(offer.price!+9)),
-  });
+  await importCsv('prices.csv','sku,price\n'+offer.sku+','+(offer.price!+9));
   const savePrices=page.getByRole('button',{name:'Сохранить изменения · 1'});
   await expect(savePrices).toBeEnabled();
   const stockChange=await page.request.post('/api/market/offers-batch',{data:{rows:[{id:offer.id,stock:offer.stock+3}]}});

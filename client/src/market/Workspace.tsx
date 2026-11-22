@@ -1,81 +1,13 @@
 import {useState} from 'react';
-import {Button,Input,InputNumber,Select,Upload,Alert,Table,Space,Modal} from 'antd';
-import Papa from 'papaparse';
+import {Button,Input,InputNumber,Select,Table,Space,Modal} from 'antd';
 import type {Market, Offer} from './types';
 import {money,weekdays} from './types';
 import {Categories} from './Operations';
+import {Assortment} from './Assortment';
 import {CompanyProfile,ParticipantTeam,PlatformAnalytics} from './CompanyProfile';
 
 type Act = (path:string,data:unknown,done?:()=>void)=>Promise<void>;
-type Edit = {id:number; price:number; stock:number};
 type WorkspaceProps = {d:Market; act:Act; busy:boolean};
-
-function downloadCsv(rows:Edit[]) {
-  const url = URL.createObjectURL(new Blob(['\ufeff',Papa.unparse(rows,{columns:['id','price','stock']})],{type:'text/csv;charset=utf-8'}));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'ассортимент.csv';
-  link.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-
-function Assortment({offers,productName,act,busy}:{offers:Offer[]; productName:(offer:Offer)=>string; act:Act; busy:boolean}) {
-  const [filter,setFilter] = useState('');
-  const [edits,setEdits] = useState<Record<number,Edit>>({});
-  const [importError,setImportError] = useState('');
-  const [settings,setSettings] = useState<{id:number;sku:string;pack:number;step:number;active:boolean}>();
-  const visibleOffers = offers.filter(offer=>productName(offer).toLowerCase().includes(filter.trim().toLowerCase()));
-  const currentRow = (offer:Offer):Edit => edits[offer.id] ?? {id:offer.id,price:offer.price!,stock:offer.stock};
-  const updates = Object.values(edits);
-
-  async function importCsv(file:File) {
-    setImportError('');
-    const csv=Papa.parse<Record<string,string>>(await file.text(),{header:true,skipEmptyLines:'greedy'});
-    if (csv.errors.length || !['id','price','stock'].every(name=>csv.meta.fields?.includes(name)) || !csv.data.length) {
-      setImportError('У CSV должны быть колонки id, price и stock. Возьмите их из выгрузки.');
-      return;
-    }
-    const ownIds = new Set(offers.map(offer=>offer.id));
-    const incoming:Record<number,Edit> = {};
-    for (const [index,line] of csv.data.entries()) {
-      const row = {id:Number(line.id),price:Number(line.price),stock:Number(line.stock)};
-      const valid = [line.id,line.price,line.stock].every(value=>/^\d+$/.test(value?.trim())) &&
-        [row.id,row.price,row.stock].every(value=>Number.isSafeInteger(value)&&value<=1000000) &&
-        ownIds.has(row.id) && row.price>0 && !incoming[row.id];
-      if (!valid) {
-        setImportError('Строка '+(index+2)+': проверьте идентификатор, цену и остаток. Повторы не допускаются.');
-        return;
-      }
-      incoming[row.id] = row;
-    }
-    setEdits(previous=>({...previous,...incoming}));
-  }
-
-  return <>
-    <div className="heading"><h2>Ассортимент</h2><Input aria-label="Поиск в ассортименте" placeholder="Найти в ассортименте" value={filter} onChange={event=>setFilter(event.target.value)}/></div>
-    <div className="filters">
-      <Button onClick={()=>downloadCsv(visibleOffers.map(currentRow))}>Экспорт CSV</Button>
-      <Upload accept=".csv,text/csv" showUploadList={false} beforeUpload={file=>{void importCsv(file);return false;}}><Button>Импорт CSV</Button></Upload>
-      <Button type="primary" loading={busy} disabled={!updates.length} onClick={()=>void act('offers-batch',{rows:updates},()=>setEdits({}))}>Сохранить изменения{updates.length ? ' · '+updates.length : ''}</Button>
-    </div>
-    {importError&&<Alert type="error" message={importError}/>}
-    <Table rowKey="id" dataSource={visibleOffers} pagination={{pageSize:12}} scroll={{x:520}} columns={[
-      {title:'Товар',render:(_,offer)=>productName(offer)},
-      {title:'Цена за упаковку, ₽',render:(_,offer)=><InputNumber aria-label="Цена" min={1} max={1000000} precision={0} value={currentRow(offer).price} onChange={price=>price!==null&&setEdits(previous=>({...previous,[offer.id]:{...currentRow(offer),price}}))}/>},
-      {title:'Остаток, уп.',render:(_,offer)=><InputNumber aria-label="Остаток" min={0} max={1000000} precision={0} value={currentRow(offer).stock} onChange={stock=>stock!==null&&setEdits(previous=>({...previous,[offer.id]:{...currentRow(offer),stock}}))}/>},
-      {title:'Предложение',render:(_,offer)=><Button onClick={()=>setSettings({id:offer.id,sku:offer.sku??'',pack:offer.pack,step:offer.step??offer.pack,active:offer.active!==false})}>{offer.active===false?'Скрыто':'Условия'}</Button>},
-    ]}/>
-    <Modal open={!!settings} title="Условия предложения" onCancel={()=>setSettings(undefined)} okText="Сохранить" cancelText="Отмена"
-      confirmLoading={busy} onOk={()=>settings&&void act('offer-details',settings,()=>setSettings(undefined))}>
-      {settings&&<div className="rolelist">
-        <label>Артикул<Input value={settings.sku} maxLength={80} onChange={event=>setSettings({...settings,sku:event.target.value})}/></label>
-        <label>Минимальная партия <InputNumber min={1} max={1000000} precision={0} value={settings.pack} onChange={pack=>pack!==null&&setSettings({...settings,pack})}/></label>
-        <label>Шаг заказа <InputNumber min={1} max={1000000} precision={0} value={settings.step} onChange={step=>step!==null&&setSettings({...settings,step})}/></label>
-        <label><input type="checkbox" checked={settings.active} onChange={event=>setSettings({...settings,active:event.target.checked})}/> Показывать в каталоге</label>
-      </div>}
-    </Modal>
-  </>;
-}
 
 function SupplierSettings({d,act,busy,offers,productName}:WorkspaceProps & {offers:Offer[]; productName:(offer:Offer)=>string}) {
   const company = d.companies.find(item=>item.id===d.user?.company)!;
@@ -184,7 +116,7 @@ export function Workspace({d,act,busy}:WorkspaceProps) {
         </Space>
       </form>
       {drafts.map(product=><p key={product.id}>{product.name} · {product.rejection||'На проверке'}</p>)}
-      <Assortment {...{offers,productName,act,busy}}/>
+      <Assortment key={d.user?.company} history={d.history} {...{offers,productName,act,busy}}/>
       <h2>История ассортимента</h2>
       <Table rowKey="id" dataSource={d.history} pagination={{pageSize:8}} scroll={{x:570}} columns={[
         {title:'Товар',dataIndex:'name'},

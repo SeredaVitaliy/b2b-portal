@@ -201,3 +201,84 @@ test('менеджер видит аналитику и может отозва�
     await staff.close();
   }
 });
+
+test('остаток одного поставщика автоматически меняется в открытой витрине и корзине', async ({page, browser}) => {
+  const supplier = await browser.newContext({baseURL:'http://127.0.0.1:4175'});
+  try {
+    expect((await supplier.request.post('/api/market/login',{data:{role:'supplier'}})).ok()).toBe(true);
+    expect((await page.request.post('/api/market/login',{data:{role:'buyer'}})).ok()).toBe(true);
+    const catalog:Market=await (await page.request.get('/api/market/market')).json();
+    const company=catalog.companies.find(item=>item.id===1)!;
+    const enough=(offer:Market['offers'][number])=>offer.pack+Math.max(0,
+      Math.ceil((company.minimum/offer.price!-offer.pack)/(offer.step??offer.pack)))*(offer.step??offer.pack);
+    const owned=catalog.offers.find(offer=>offer.supplier===1 && !!offer.price && offer.stock>=enough(offer) &&
+      new Set(catalog.offers.filter(other=>other.product===offer.product).map(other=>other.stock)).size===3)!;
+    expect(owned).toBeDefined();
+    const other=catalog.offers.find(offer=>offer.product===owned.product && offer.supplier!==owned.supplier)!;
+    const name=(id:number)=>catalog.companies.find(company=>company.id===id)!.name;
+    await page.goto('/products/'+owned.product);
+    const offerRow=(id:number)=>page.getByRole('main').getByRole('article').filter({
+      has:page.getByRole('heading',{name:name(id),exact:true}),
+    });
+    await expect(offerRow(owned.supplier).getByText('В наличии '+owned.stock+' уп.',{exact:true})).toBeVisible();
+    await expect(offerRow(other.supplier).getByText('В наличии '+other.stock+' уп.',{exact:true})).toBeVisible();
+    await offerRow(owned.supplier).getByRole('button',{name:'В корзину'}).click();
+    await page.getByRole('button',{name:'Открыть корзину'}).click();
+    const quantity=page.getByRole('dialog').getByRole('spinbutton',{name:'Количество'});
+    await quantity.fill(String(enough(owned)));
+    await quantity.press('Tab');
+    const checkout=page.getByRole('dialog').getByRole('button',{name:/Оформить/});
+    await expect(checkout).toBeEnabled();
+
+    expect((await supplier.request.post('/api/market/offers-batch',{data:{rows:[{id:owned.id,stock:0}]}})).ok()).toBe(true);
+    await expect(checkout).toBeDisabled({timeout:7500});
+    await page.getByRole('dialog').getByRole('button',{name:'Close'}).click();
+    await expect(offerRow(owned.supplier).getByText('Нет в наличии',{exact:true})).toBeVisible();
+    await expect(offerRow(other.supplier).getByText('В наличии '+other.stock+' уп.',{exact:true})).toBeVisible();
+  } finally {
+    await supplier.close();
+  }
+});
+
+test('поставщик вставляет строки Excel, заливает диапазон цен и сохраняет изменения', async ({page}) => {
+  expect((await page.request.post('/api/market/login',{data:{role:'supplier'}})).ok()).toBe(true);
+  const catalog:Market=await (await page.request.get('/api/market/market')).json();
+  const owned=catalog.offers.filter(offer=>offer.supplier===1).sort((a,b)=>a.id-b.id).slice(0,2);
+  const name=(offer:typeof owned[number])=>catalog.products.find(product=>product.id===offer.product)!.name;
+  const field=(label:string,index:number)=>page.getByRole('spinbutton',{name:label+' · '+name(owned[index]),exact:true});
+  await page.goto('/workspace');
+  await expect(page.getByRole('heading',{name:'Редактор цен и остатков'})).toBeVisible();
+  const clipboard=await page.evaluateHandle(()=>{
+    const data=new DataTransfer();
+    data.setData('text/plain','701\t31\n702\t42');
+    return data;
+  });
+  await field('Цена',0).dispatchEvent('paste',{clipboardData:clipboard});
+  await expect(field('Остаток',0)).toHaveValue('31');
+  await expect(field('Остаток',1)).toHaveValue('42');
+  await field('Цена',0).click();
+  await field('Цена',1).click({modifiers:['Shift']});
+  await page.getByRole('spinbutton',{name:'Значение заливки'}).fill('850');
+  await page.getByRole('button',{name:'Применить к выделенным (2)'}).click();
+  await expect(field('Цена',0)).toHaveValue('850');
+  await expect(field('Цена',1)).toHaveValue('850');
+  const saved=page.waitForResponse(response=>response.url().endsWith('/offers-batch'));
+  await page.getByRole('button',{name:'Сохранить изменения · 2'}).click();
+  expect((await saved).ok()).toBe(true);
+  const after:Market=await (await page.request.get('/api/market/market')).json();
+  expect(after.offers.find(offer=>offer.id===owned[0].id)).toMatchObject({price:850,stock:31});
+  expect(after.offers.find(offer=>offer.id===owned[1].id)).toMatchObject({price:850,stock:42});
+});
+
+test('каталог показывает все карточки одной страницей и ищет по артикулу', async ({page}) => {
+  await page.goto('/catalog');
+  await expect(page.getByRole('link',{name:/Цена после входа/})).toHaveCount(24);
+  await page.getByRole('checkbox',{name:'Показать все товары'}).check();
+  const catalog:Market=await (await page.request.get('/api/market/market')).json();
+  const publicProducts=new Set(catalog.offers.map(offer=>offer.product));
+  await expect(page.getByRole('link',{name:/Цена после входа/})).toHaveCount(publicProducts.size);
+  const sku=catalog.offers.find(offer=>offer.sku?.startsWith('SV-') && offer.id>=100)!.sku!;
+  await page.getByRole('textbox',{name:'Поиск'}).fill(sku.toLowerCase() + ' ');
+  const matches=new Set(catalog.offers.filter(offer=>offer.sku?.toLowerCase().includes(sku.toLowerCase())).map(offer=>offer.product));
+  await expect(page.getByRole('link',{name:/Цена после входа/})).toHaveCount(matches.size);
+});

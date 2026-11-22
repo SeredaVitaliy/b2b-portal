@@ -3,6 +3,13 @@ import { randomBytes, createHash } from 'node:crypto';
 const digest = value => createHash('sha256').update(value).digest('hex');
 const roles = {buyer:9, buyer_admin:9, supplier:1, supplier_admin:1, platform:null};
 const stages = ['new','confirmed','packing','shipping','delivered'];
+async function inventoryVersion(db) {
+  const {rows:[row]} = await db.query(`SELECT md5(COALESCE(string_agg(
+    concat_ws(':', o.id, o.product, o.supplier, o.stock, o.pack, o.step), ',' ORDER BY o.id), '')) AS version
+    FROM offers o JOIN products p ON p.id=o.product JOIN companies c ON c.id=o.supplier
+    WHERE o.active AND p.approved AND c.active`);
+  return row.version;
+}
 function requireValue(condition,message,status=422) {
   if (!condition) throw Object.assign(new Error(message),{status});
 }
@@ -58,8 +65,11 @@ export async function handle(req,pool) {
   const path=new URL(req.url).pathname.split('/').pop();
   const token=req.headers.get('cookie')?.match(/(?:^|; *)market=([a-f0-9]{64})(?:;|$)/)?.[1]||'';
   const db=await pool.connect();
+  const versionRequest=req.method==='GET' && path==='inventory-version';
+  const snapshotRequest=req.method==='GET' && path==='market';
   try {
-    await db.query('BEGIN');
+    if (versionRequest) return reply({version:await inventoryVersion(db)});
+    await db.query(snapshotRequest ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN');
     const {rows:[user]}=await db.query(`SELECT s.role,s.company,s.member FROM sessions s
       LEFT JOIN companies c ON c.id=s.company LEFT JOIN market_members m ON m.id=s.member
       WHERE s.token=$1 AND s.expires>now() AND (s.company IS NULL OR c.active)
@@ -81,7 +91,7 @@ export async function handle(req,pool) {
         (SELECT json_agg(e ORDER BY created) FROM order_events e WHERE e.order_id=o.id) AS events,
         COALESCE((SELECT json_agg(c ORDER BY id) FROM market_order_comments c WHERE c.order_id=o.id),'[]') AS comments
         FROM orders o WHERE $1='platform' OR buyer=$2 OR supplier=$2 ORDER BY id DESC LIMIT 200`,[user.role,user.company])).rows:[];
-      result={user:user||null,companies,products,offers,orders,...await readWorkflow(db,user),categories:(await db.query('SELECT * FROM categories ORDER BY id')).rows};
+      result={user:user||null,companies,products,offers,orders,...await readWorkflow(db,user),categories:(await db.query('SELECT * FROM categories ORDER BY id')).rows,inventoryVersion:await inventoryVersion(db)};
     } else {
       requireValue(req.method==='POST' && req.headers.get('content-type')?.startsWith('application/json'),'Неверный метод',405);
       const origin=req.headers.get('origin');
@@ -167,7 +177,7 @@ export async function handle(req,pool) {
     }
     await db.query('COMMIT'); return reply(result,200,headers);
   } catch(error) {
-    await db.query('ROLLBACK');
+    if (!versionRequest) await db.query('ROLLBACK');
     if(!error.status) console.error('market request',error.code||error.name);
     return reply({error:error.status?error.message:'Ошибка обработки запроса'},error.status||500);
   } finally { db.release(); }

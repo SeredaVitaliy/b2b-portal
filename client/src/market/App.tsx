@@ -29,6 +29,19 @@ function dateOptions(company:Company) {
 export default function App(){
  const cache=useQueryClient();
  const query=useQuery({queryKey:['market'],queryFn:()=>api<Market>('market'),retry:1,refetchInterval:15000});
+ const inventory=useQuery({
+  queryKey:['market-inventory-version'],
+  queryFn:()=>api<{version:string}>('inventory-version'),
+  enabled:!!query.data?.inventoryVersion,
+  refetchInterval:2000,
+  retry:false,
+ });
+ useEffect(()=>{
+  if(inventory.data && inventory.dataUpdatedAt>query.dataUpdatedAt &&
+     inventory.data.version!==query.data?.inventoryVersion) {
+   void cache.invalidateQueries({queryKey:['market']});
+  }
+ },[cache,inventory.data,inventory.dataUpdatedAt,query.data?.inventoryVersion,query.dataUpdatedAt]);
  useEffect(()=>{
   if(!import.meta.env.DEV)return;
   const url=new URL('/api/market/updates',window.location.origin);
@@ -58,14 +71,16 @@ export default function App(){
  const [login,setLogin]=useState(false),[basket,setBasket]=useState(false),[cart,setCart]=useState<Cart>(savedCart);
  const [employeeEmail,setEmployeeEmail]=useState(''),[employeeCode,setEmployeeCode]=useState('');
  const [catalogMode,setCatalogMode]=useState<'products'|'suppliers'>('products');
+ const [showAll,setShowAll]=useState(false);
  const [address,setAddress]=useState('Калининград, ресторан «Порт»'),[note,setNote]=useState(''),[dates,setDates]=useState<Record<number,string>>({});
  const [template,setTemplate]=useState<Template['lines']|null>(null),[templateName,setTemplateName]=useState('');
- const [favoritesOnly,setFavoritesOnly]=useState(false),[tomorrow,setTomorrow]=useState(false),[maxPrice,setMaxPrice]=useState<number|null>(null);
+ const [favoritesOnly,setFavoritesOnly]=useState(false),[tomorrow,setTomorrow]=useState(false);
+ const [minPrice,setMinPrice]=useState<number|null>(null),[maxPrice,setMaxPrice]=useState<number|null>(null);
  const [orderStatus,setOrderStatus]=useState('all'),[orderSearch,setOrderSearch]=useState(''),[orderFrom,setOrderFrom]=useState(''),[orderTo,setOrderTo]=useState('');
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const checkoutKey=useRef(crypto.randomUUID()),lock=useRef(false);
  useEffect(()=>{localStorage.setItem(storageKey,JSON.stringify(cart));checkoutKey.current=crypto.randomUUID();},[cart,address,note,dates]);
- useEffect(()=>{setPage(1);},[search,cat,supplier,stock,sort,favoritesOnly,tomorrow,maxPrice]);
+ useEffect(()=>{setPage(1);},[search,cat,supplier,stock,sort,favoritesOnly,tomorrow,minPrice,maxPrice]);
  async function act(path:string,data:unknown,done?:()=>void){
   if(lock.current)return; lock.current=true;setBusy(true);setError('');setNotice('');
   try {await api(path,data);done?.();await cache.invalidateQueries({queryKey:['market']});}
@@ -87,18 +102,23 @@ export default function App(){
  }
  const companies=new Map(d?.companies.map(company=>[company.id,company]));
  const nextDay=dateAfter(1),nextWeekday=new Date(nextDay+'T12:00:00Z').getUTCDay()||7;
+ const searchKey=(value:string)=>value.trim().toLocaleLowerCase('ru').replace(/ё/g,'е');
+ const term=searchKey(search);
  const matching=(p:Product)=>(byProduct.get(p.id)||[]).filter(o=>{
    const company=companies.get(o.supplier);
    return o.active!==false&&company?.active&&(!supplier||o.supplier===supplier)&&(!stock||o.stock>=o.pack)&&
-     (!maxPrice||o.price===null||o.price<=maxPrice)&&(!tomorrow||(company.lead_days===1&&company.delivery_days.includes(nextWeekday)));
+     (searchKey(p.name).includes(term)||searchKey(o.sku??'').includes(term))&&
+     (!minPrice||o.price===null||o.price>=minPrice)&&(!maxPrice||o.price===null||o.price<=maxPrice)&&
+     (!tomorrow||(company.lead_days===1&&company.delivery_days.includes(nextWeekday)));
  });
  const includedCategories=new Set([cat]);
  for (const category of d?.categories||[]) {
   if(category.parent!==null&&includedCategories.has(category.parent))includedCategories.add(category.id);
  }
- const filtered=(d?.products||[]).filter(p=>p.approved&&(!favoritesOnly||d?.favorites?.includes(p.id))&&(!cat||includedCategories.has(p.category))&&p.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())&&matching(p).length);
+ const filtered=(d?.products||[]).filter(p=>p.approved&&(!favoritesOnly||d?.favorites?.includes(p.id))&&(!cat||includedCategories.has(p.category))&&matching(p).length);
  if(sort==='frequency')filtered.sort((a,b)=>(purchases.get(b.id)?.count??0)-(purchases.get(a.id)?.count??0));
  if(sort==='price')filtered.sort((a,b)=>(matching(a)[0].price||0)-(matching(b)[0].price||0));
+ if(sort==='price-desc')filtered.sort((a,b)=>(matching(b)[0].price||0)-(matching(a)[0].price||0));
  const frequent=filtered.filter(item=>(purchases.get(item.id)?.count??0)>1)
   .sort((a,b)=>(purchases.get(b.id)?.count??0)-(purchases.get(a.id)?.count??0)).slice(0,4);
  const lastMonth=dateAfter(-30);
@@ -157,11 +177,11 @@ export default function App(){
  </div>}
  <section id="catalog"><div className="heading"><h2>Каталог продуктов</h2><Input prefix={<SearchOutlined/>} allowClear placeholder="Найти продукт" aria-label="Поиск" value={search} onChange={e=>setSearch(e.target.value)}/></div>
  <div className="chips">{[{id:0,name:'Все категории'},...(d?.categories||[])].map(c=><button key={c.id} className={cat===c.id?'on':''} onClick={()=>setCat(c.id)}>{c.name}</button>)}</div>
- <div className="filters"><Select aria-label="Поставщик" value={supplier} onChange={setSupplier} options={[{value:0,label:'Все поставщики'},...suppliers.map(c=>({value:c.id,label:c.name}))]}/><label><input type="checkbox" checked={stock} onChange={e=>setStock(e.target.checked)}/> В наличии</label><label><input type="checkbox" checked={tomorrow} onChange={e=>setTomorrow(e.target.checked)}/> Доставят завтра</label>{buyer&&<label><input type="checkbox" checked={favoritesOnly} onChange={e=>setFavoritesOnly(e.target.checked)}/> Избранное</label>}{role&&<InputNumber aria-label="Цена до" placeholder="Цена до, ₽" min={1} value={maxPrice} onChange={setMaxPrice}/>}{role&&<Select aria-label="Сортировка" value={sort} onChange={setSort} options={[{value:'catalog',label:'По каталогу'},{value:'price',label:'Сначала дешевле'},...(buyer?[{value:'frequency',label:'Сначала часто заказываемые'}]:[])]}/>}
- <Select aria-label="Группировка каталога" value={catalogMode} onChange={setCatalogMode} options={[{label:'По товарам',value:'products'},{label:'По поставщикам',value:'suppliers'}]}/><span>{filtered.length} позиций</span></div>
+ <div className="filters"><Select aria-label="Поставщик" value={supplier} onChange={setSupplier} options={[{value:0,label:'Все поставщики'},...suppliers.map(c=>({value:c.id,label:c.name}))]}/><label><input type="checkbox" checked={stock} onChange={e=>setStock(e.target.checked)}/> В наличии</label><label><input type="checkbox" checked={tomorrow} onChange={e=>setTomorrow(e.target.checked)}/> Доставят завтра</label>{buyer&&<label><input type="checkbox" checked={favoritesOnly} onChange={e=>setFavoritesOnly(e.target.checked)}/> Избранное</label>}{role&&<><InputNumber aria-label="Цена от" placeholder="Цена от, ₽" min={1} value={minPrice} onChange={setMinPrice}/><InputNumber aria-label="Цена до" placeholder="Цена до, ₽" min={1} value={maxPrice} onChange={setMaxPrice}/></>}{role&&<Select aria-label="Сортировка" value={sort} onChange={setSort} options={[{value:'catalog',label:'По каталогу'},{value:'price',label:'Сначала дешевле'},{value:'price-desc',label:'Сначала дороже'},...(buyer?[{value:'frequency',label:'Сначала часто заказываемые'}]:[])]}/>}
+ <Select aria-label="Группировка каталога" value={catalogMode} onChange={setCatalogMode} options={[{label:'По товарам',value:'products'},{label:'По поставщикам',value:'suppliers'}]}/>{catalogMode==='products'&&<label><input type="checkbox" checked={showAll} onChange={event=>setShowAll(event.target.checked)}/> Показать все товары</label>}<span>{filtered.length} позиций</span></div>
  {catalogMode==='products'?<>
- <div className="grid">{filtered.slice((page-1)*24,page*24).map(p=>{const os=matching(p);return <Link className="card" key={p.id} to={"/products/"+p.id}><ProductImage product={p}/><div className="info"><small>{d?.categories.find(c=>c.id===p.category)?.name}</small><h3>{p.name}</h3><strong>{role?'от '+money(os[0].price||0):'Цена после входа'}</strong><footer>{os.length===1?'1 поставщик':os.length+' поставщика'} <ArrowRightOutlined/></footer></div></Link>;})}</div>
- {Boolean(filtered.length)&&<Pagination current={page} pageSize={24} total={filtered.length} onChange={setPage} showSizeChanger={false}/>}
+ <div className="grid">{(showAll?filtered:filtered.slice((page-1)*24,page*24)).map(p=>{const os=matching(p);return <Link className="card" key={p.id} to={"/products/"+p.id}><ProductImage product={p}/><div className="info"><small>{d?.categories.find(c=>c.id===p.category)?.name}</small><h3>{p.name}</h3><strong>{role?'от '+money(os[0].price||0):'Цена после входа'}</strong><footer>{os.length===1?'1 поставщик':os.length+' поставщика'} <ArrowRightOutlined/></footer></div></Link>;})}</div>
+ {!showAll&&Boolean(filtered.length)&&<Pagination current={page} pageSize={24} total={filtered.length} onChange={setPage} showSizeChanger={false}/>}
  </>:<div className="grid">{suppliers.map(company=>{
    const count=filtered.filter(item=>matching(item).some(offer=>offer.supplier===company.id)).length;
    if(!count)return null;
@@ -170,7 +190,7 @@ export default function App(){
  })}</div>}
  {!filtered.length&&<Empty description={query.isLoading?'Загружаем каталог…':'Товары не найдены'}/>}</section></>}
  {view==='Поставщики'&&<section><div className="heading"><h1>Поставщики</h1><Button onClick={()=>setEnrollment(true)}>Подать заявку</Button></div><div className="grid">{suppliers.map(c=><Link className="supplier" key={c.id} to={"/suppliers/"+c.id}><ShopOutlined/><h3>{c.name}</h3><p>{c.description||'Поставки для заведений Калининградской области'}</p><p>{c.delivery_days.map(day=>weekdays[day-1]).join(', ')} · от {c.lead_days} дн.</p><strong>Заказ от {money(c.minimum)}</strong></Link>)}</div></section>}
- {d&&view==='Кабинет'&&<Workspace d={d} act={act} busy={busy}/>}
+ {d&&view==='Кабинет'&&(role==='platform'||role.startsWith('supplier')?<Workspace d={d} act={act} busy={busy}/>:<Empty description="Кабинет доступен поставщикам и менеджеру портала"/>)}
  {d&&view==='Закупки'&&<BuyerTools market={d} {...{act,busy}} load={loadLines}/>}
  {d&&view==='Заказы'&&<section>{orderRoute?<Link to="/orders">Все заказы</Link>:<div className="heading"><h1>Заказы</h1><Select aria-label="Статус заказа" value={orderStatus} onChange={setOrderStatus} options={[{value:'all',label:'Все статусы'},...Object.entries(statuses).map(([value,label])=>({value,label}))]}/></div>}
  {!orderRoute&&<div className="filters"><Input aria-label="Поиск заказов" placeholder="Номер заказа или товар" value={orderSearch} onChange={event=>setOrderSearch(event.target.value)}/><label>Доставка с <input type="date" value={orderFrom} onChange={event=>setOrderFrom(event.target.value)}/></label><label>по <input type="date" min={orderFrom||undefined} value={orderTo} onChange={event=>setOrderTo(event.target.value)}/></label></div>}

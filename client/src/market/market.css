@@ -138,3 +138,9 @@ form .ant-input { max-width: 340px; }
 
 .filters > .ant-input[aria-label='Поиск заказов'] { flex: 1 1 240px; max-width: 360px; }
 .filters input[type=date] { padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); }
+
+.sheet-help { color:#53655c; margin:0 0 12px; }
+.offer-cell { padding:3px; border-radius:6px; }
+.offer-cell.is-selected { background:#dcefe2; outline:2px solid #43855d; }
+.offer-cell .ant-input-number { width:100%; }
+.offer-actions { display:flex; gap:4px; flex-wrap:wrap; }

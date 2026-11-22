@@ -85,12 +85,22 @@ export async function manageWorkflow(db, user, path, data, {requireValue,number,
   if (path === 'offers-batch') {
     requireValue(supplier,'Требуется роль поставщика',403);
     requireValue(Array.isArray(data.rows) && data.rows.length > 0 && data.rows.length <= 1000,'Проверьте список предложений');
-    const rows = data.rows.map(row => ({id:number(row?.id), price:number(row?.price), stock:number(row?.stock,0)})).sort((a,b)=>a.id-b.id);
+    const rows = data.rows.map(row => {
+      const id=number(row?.id);
+      requireValue(row.price!==undefined || row.stock!==undefined,'Укажите цену или остаток');
+      return {id,price:row.price===undefined?null:number(row.price),stock:row.stock===undefined?null:number(row.stock,0),
+        expected_price:row.expectedPrice===undefined?null:number(row.expectedPrice),
+        expected_stock:row.expectedStock===undefined?null:number(row.expectedStock,0)};
+    }).sort((a,b)=>a.id-b.id);
     requireValue(new Set(rows.map(row=>row.id)).size === rows.length,'Удалите дубли предложений из списка');
-    const updated = await db.query(`UPDATE offers o SET price=u.price,stock=u.stock
-      FROM jsonb_to_recordset($1) AS u(id int,price int,stock int)
-      WHERE o.id=u.id AND o.supplier=$2 RETURNING o.id`,[JSON.stringify(rows),user.company]);
-    requireValue(updated.rowCount === rows.length,'В списке есть недоступное предложение',404);
+    const owned = await db.query('SELECT id FROM offers WHERE id=ANY($1::int[]) AND supplier=$2 ORDER BY id FOR UPDATE',
+      [rows.map(row=>row.id),user.company]);
+    requireValue(owned.rowCount === rows.length,'В списке есть недоступное предложение',404);
+    const updated = await db.query(`UPDATE offers o SET price=COALESCE(u.price,o.price),stock=COALESCE(u.stock,o.stock)
+      FROM jsonb_to_recordset($1) AS u(id int,price int,stock int,expected_price int,expected_stock int)
+      WHERE o.id=u.id AND o.supplier=$2 AND (u.expected_price IS NULL OR o.price=u.expected_price)
+        AND (u.expected_stock IS NULL OR o.stock=u.expected_stock) RETURNING o.id`,[JSON.stringify(rows),user.company]);
+    requireValue(updated.rowCount === rows.length,'Цена или остаток уже изменились. Проверьте строки перед сохранением.',409);
     return true;
   }
   if (path === 'offer-details') {

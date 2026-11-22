@@ -9,14 +9,18 @@ export function Enrollment({open,onClose,act,busy}:Controls & {open:boolean;onCl
   const [kind,setKind]=useState('supplier');
   const [name,setName]=useState('');
   const [registration,setRegistration]=useState('');
+  const [legalName,setLegalName]=useState('');
+  const [taxId,setTaxId]=useState('');
   return <Modal open={open} onCancel={onClose} okText="Отправить заявку" cancelText="Отмена"
     title="Подключение компании" confirmLoading={busy}
-    okButtonProps={{disabled:!name.trim()||!/^0\d{9}$/.test(registration)}}
-    onOk={()=>void act('enroll',{kind,name,registration},()=>{setName('');setRegistration('');onClose();})}>
+    okButtonProps={{disabled:!name.trim()||!legalName.trim()||!/^(?:\d{10}|\d{12})$/.test(taxId)||!/^0\d{9}$/.test(registration)}}
+    onOk={()=>void act('enroll',{kind,name,registration,legalName,taxId},()=>{setName('');setRegistration('');setLegalName('');setTaxId('');onClose();})}>
     <p>Укажите вымышленные данные. Код заявки состоит из десяти цифр и начинается с нуля.</p>
-    <Space direction="vertical" style={{width:'100%'}}>
+    <Space orientation="vertical" style={{width:'100%'}}>
       <Select aria-label="Тип компании" value={kind} onChange={setKind} options={[{value:'supplier',label:'Поставщик'},{value:'buyer',label:'Заведение'}]}/>
       <Input aria-label="Название компании" placeholder="Название компании" maxLength={100} value={name} onChange={event=>setName(event.target.value)}/>
+      <Input aria-label="Юридическое название" placeholder="Юридическое название" maxLength={180} value={legalName} onChange={event=>setLegalName(event.target.value)}/>
+      <Input aria-label="ИНН" placeholder="ИНН" inputMode="numeric" maxLength={12} value={taxId} onChange={event=>setTaxId(event.target.value)}/>
       <Input aria-label="Код заявки" placeholder="Демонстрационный код" inputMode="numeric" maxLength={10} value={registration} onChange={event=>setRegistration(event.target.value)}/>
     </Space>
   </Modal>;

@@ -12,12 +12,18 @@
     "dev:server": "npm run dev -w server",
     "dev:client": "npm run dev -w client",
     "seed": "npm run seed -w server",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "dev:market": "node market/dev-server.mjs",
+    "dev:local": "node --env-file-if-exists=.env.local market/dev-server.mjs --with-client",
+    "test:market": "playwright test --config playwright.market.config.ts"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.1"
+    "@playwright/test": "^1.64.1",
+    "vite": "^7.2.4"
   },
   "dependencies": {
-    "@netlify/database": "^1.0.0"
+    "@netlify/database": "^1.0.0",
+    "pg": "^8.23.1",
+    "ws": "^8.18.0"
   }
 }

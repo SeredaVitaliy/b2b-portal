@@ -3,6 +3,8 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 
+const marketAddress = `127.0.0.1:${process.env.MARKET_PORT ?? 4000}`;
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -16,7 +18,8 @@ export default defineConfig({
     proxy: {
       // Всё, что уходит на /api, dev-сервер Vite проксирует на бэкенд.
       // Благодаря этому фронт ходит на относительный /api и в dev нет CORS-проблем.
-      "/api": "http://localhost:4000",
+      "/api/market/updates": { target: `ws://${marketAddress}`, ws: true },
+      "/api": `http://${marketAddress}`,
     },
   },
   test: {

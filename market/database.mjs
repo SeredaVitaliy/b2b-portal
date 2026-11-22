@@ -22,7 +22,7 @@ async function prepare(pool) {
       }
       await client.query('INSERT INTO market_migrations(version) VALUES($1)',[version]);
     }
-    for (const migration of ['202611210002_workflows','202611210003_operations']) {
+    for (const migration of ['202611210002_workflows','202611210003_operations','202611220004_company_profiles','202611220005_demo_inventory']) {
       const applied = await client.query('SELECT 1 FROM market_migrations WHERE version=$1',[migration]);
       if (!applied.rowCount) {
         await client.query(await readFile(resolve('market','migrations',migration+'.sql'),'utf8'));

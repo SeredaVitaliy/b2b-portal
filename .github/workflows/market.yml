@@ -2,6 +2,8 @@ name: Marketplace
 on:
   push:
     branches: [mvp]
+  pull_request:
+    branches: [mvp]
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,12 +28,15 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
+      - run: npm run test:run -w client
+      - run: npm run test:run -w server
+      - run: node --test tests/market-api.test.mjs
       - run: npm run build -w client
-      - run: npm install --no-save pg@8
       - run: node tests/market-integration.mjs
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test --config playwright.market.config.ts
   live:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     needs: integration
     timeout-minutes: 10

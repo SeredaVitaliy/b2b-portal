@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {expect, test} from '@playwright/test';
-import type {Market} from '../client/src/market/types';
+import {money, type Market} from '../client/src/market/types';
 
 test('гость сравнивает предложения, закупщик оформляет корзину, поставщик подтверждает заказ', async ({page}) => {
   await page.goto('/');
@@ -43,7 +43,7 @@ test('гость сравнивает предложения, закупщик �
   for (const offer of selected) {
     const company = catalog.companies.find(item => item.id === offer.supplier)!;
     const row = details.getByRole('article').filter({hasText: company.name});
-    await expect(row.getByText(/₽/)).toBeVisible();
+    await expect(row.locator('strong')).toHaveText(money(offer.price!));
     await row.getByRole('button', {name: 'В корзину'}).click();
   }
   await page.getByRole('navigation',{name:'Навигация по каталогу'}).getByRole('link',{name:'Каталог'}).click();

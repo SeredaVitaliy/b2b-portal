@@ -138,6 +138,20 @@ test('поставщик выгружает CSV и сохраняет неско
   for (const offer of owned) {
     expect(after.offers.find(item=>item.id===offer.id)).toMatchObject({price:offer.price!+5,stock:offer.stock+2});
   }
+
+  const offer=owned[0];
+  await page.locator('input[type=file]').setInputFiles({
+    name:'prices.csv',mimeType:'text/csv',buffer:Buffer.from('sku,price\n'+offer.sku+','+(offer.price!+9)),
+  });
+  const savePrices=page.getByRole('button',{name:'Сохранить изменения · 1'});
+  await expect(savePrices).toBeEnabled();
+  const stockChange=await page.request.post('/api/market/offers-batch',{data:{rows:[{id:offer.id,stock:offer.stock+3}]}});
+  expect(stockChange.ok()).toBe(true);
+  const priceChange=page.waitForResponse(response=>response.url().endsWith('/offers-batch'));
+  await savePrices.click();
+  expect((await priceChange).ok()).toBe(true);
+  const current:Market=await (await page.request.get('/api/market/market')).json();
+  expect(current.offers.find(item=>item.id===offer.id)).toMatchObject({price:offer.price!+9,stock:offer.stock+3});
 });
 
 test('заявка одобряется менеджером, а витрина доступна на телефоне', async ({page}) => {
@@ -248,12 +262,11 @@ test('поставщик вставляет строки Excel, заливает
   const field=(label:string,index:number)=>page.getByRole('spinbutton',{name:label+' · '+name(owned[index]),exact:true});
   await page.goto('/workspace');
   await expect(page.getByRole('heading',{name:'Редактор цен и остатков'})).toBeVisible();
-  const clipboard=await page.evaluateHandle(()=>{
+  await field('Цена',0).evaluate(input=>{
     const data=new DataTransfer();
     data.setData('text/plain','701\t31\n702\t42');
-    return data;
+    input.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));
   });
-  await field('Цена',0).dispatchEvent('paste',{clipboardData:clipboard});
   await expect(field('Остаток',0)).toHaveValue('31');
   await expect(field('Остаток',1)).toHaveValue('42');
   await field('Цена',0).click();

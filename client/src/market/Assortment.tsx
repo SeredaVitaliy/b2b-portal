@@ -142,22 +142,32 @@ export function Assortment({offers, productName, act, busy, history}:{
   }
 
   async function importCsv(file:File) {
-    const csv=Papa.parse<Record<string,string>>(await file.text(),{header:true,skipEmptyLines:'greedy'});
-    if(csv.errors.length || !['id','price','stock'].every(name=>csv.meta.fields?.includes(name)) || !csv.data.length) {
-      setError('У CSV должны быть колонки id, price и stock. Возьмите их из выгрузки.');
+    const csv=await new Promise<Papa.ParseResult<Record<string,string>>>((resolve,reject)=>{
+      Papa.parse<Record<string,string>,File>(file,{header:true,skipEmptyLines:'greedy',worker:Papa.WORKERS_SUPPORTED,
+        transformHeader:name=>name.trim().toLowerCase(),complete:resolve,error:reject});
+    });
+    const hasId=csv.meta.fields?.includes('id');
+    if(csv.errors.length || !csv.meta.fields?.includes('price') || (!hasId && !csv.meta.fields?.includes('sku')) || !csv.data.length) {
+      setError('В CSV нужны id или sku и колонка price. Колонка stock необязательна.');
       return;
+    }
+    const bySku=new Map<string,Offer[]>();
+    for(const offer of offers) {
+      const sku=offer.sku?.trim().toLowerCase();
+      if(sku) bySku.set(sku,[...(bySku.get(sku)??[]),offer]);
     }
     const seen=new Set<number>();
     const changes:{cell:Cell;value:number}[]=[];
     for(const [index,line] of csv.data.entries()) {
-      const id=Number(line.id);
-      if(!/^\d+$/.test(line.id?.trim()) || !byId.has(id) || seen.has(id) ||
-        !FIELDS.every(field=>/^\d+$/.test(line[field]?.trim()) && valid(field,Number(line[field])))) {
-        setError('Строка '+(index+2)+': проверьте идентификатор, цену и остаток. Повторы не допускаются.');
+      const matches=bySku.get(line.sku?.trim().toLowerCase())??[];
+      const id=hasId && /^\d+$/.test(line.id?.trim()) ? Number(line.id) : !hasId && matches.length===1 ? matches[0].id : NaN;
+      const fields=FIELDS.filter(field=>field==='price'||line.stock?.trim());
+      if(!byId.has(id) || seen.has(id) || !fields.every(field=>/^\d+$/.test(line[field]?.trim()) && valid(field,Number(line[field])))) {
+        setError('Строка '+(index+2)+': проверьте артикул, цену и остаток. Повторы и неоднозначные артикулы не допускаются.');
         return;
       }
       seen.add(id);
-      for(const field of FIELDS) changes.push({cell:{id,field},value:Number(line[field])});
+      for(const field of fields) changes.push({cell:{id,field},value:Number(line[field])});
     }
     stage(changes);
   }
